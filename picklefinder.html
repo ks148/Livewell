@@ -1,373 +1,444 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Warehouse Bin Lookup</title>
-<style>
-    body {
-        font-family: Arial, sans-serif;
-        background: #f5f5f5;
-        padding: 20px;
-        padding-top: 72px;
-    }
-    h1 {
-        margin-bottom: 10px;
-    }
-    .card {
-        background: white;
-        padding: 20px;
-        border-radius: 8px;
-        max-width: 900px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    }
-    .scan-input {
-        font-size: 22px;
-        padding: 10px;
-        width: 100%;
-        margin-top: 10px;
-    }
-    .bin-display {
-        font-size: 56px;
-        font-weight: bold;
-        color: #111;
-        margin: 15px 0;
-        letter-spacing: 2px;
-    }
-    .detail {
-        font-size: 18px;
-        margin: 4px 0;
-    }
-    .not-found {
-        color: red;
-        font-weight: bold;
-        font-size: 20px;
-    }
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 10px;
-    }
-    th, td {
-        padding: 8px;
-        border-bottom: 1px solid #ddd;
-        text-align: left;
-    }
-    th {
-        background: #eee;
-    }
-    button {
-        padding: 8px 14px;
-        font-size: 14px;
-        cursor: pointer;
-    }
-    .hidden {
-        display: none;
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PickleFinder</title>
+
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="PickleFinder">
+
+  <style>
+    :root{
+      --bg:#f7f9fc;
+      --card:#ffffff;
+      --border:#d8dee9;
+      --fg:#1f2937;
+      --muted:#6b7280;
+      --accent:#2563eb;
+      --accent2:#16a34a;
+      --accentLight:#dcfce7;
     }
 
-    .status-bar{
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        z-index: 9999;
-        padding: 12px 16px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-        border-bottom: 1px solid rgba(0,0,0,0.08);
-        font-size: 14px;
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--fg);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;
     }
 
-    .status-bar.not-loaded{
-        background: #fee2e2;
-        color: #7f1d1d;
+    .wrap{
+      max-width:980px;
+      margin:20px auto;
+      padding:0 14px;
     }
 
-    .status-bar.loaded{
-        background: #dcfce7;
-        color: #14532d;
+    h1{
+      margin:0 0 10px;
+      font-size:26px;
+      color:#111827;
+      letter-spacing:.2px;
     }
 
-    .status-actions{
-        display: flex;
-        gap: 10px;
-        align-items: center;
-        flex-wrap: wrap;
-        justify-content: flex-end;
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:12px;
+      box-shadow:0 3px 8px rgba(0,0,0,.03);
+      padding:16px;
+      margin:12px 0;
     }
 
-    .link-btn{
-        background: transparent;
-        border: 1px solid rgba(0,0,0,0.18);
-        padding: 6px 10px;
-        border-radius: 8px;
-        font-size: 13px;
-        cursor: pointer;
+    .row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
     }
 
-    .link-btn:active{ transform: translateY(1px); }
+    .row > *{ flex:1; }
 
-    .status-strong{ font-weight: 700; }
-</style>
+    .btn{
+      appearance:none;
+      border:none;
+      border-radius:10px;
+      padding:12px 14px;
+      font-size:16px;
+      font-weight:700;
+      cursor:pointer;
+      background:var(--accent);
+      color:white;
+      width:100%;
+    }
 
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0f172a">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="PickleFinder">
+    .btn.secondary{
+      background:#e5e7eb;
+      color:#111827;
+      font-weight:700;
+    }
+
+    .btn.danger{
+      background:#b91c1c;
+      color:white;
+    }
+
+    .status{
+      border:1px solid #86efac;
+      background:var(--accentLight);
+      border-radius:12px;
+      padding:12px 14px;
+      font-weight:800;
+      color:#14532d;
+      display:none;
+      margin-top:10px;
+    }
+
+    .status small{
+      display:block;
+      margin-top:4px;
+      font-weight:600;
+      color:#166534;
+      opacity:.9;
+    }
+
+    .scan-input{
+      width:100%;
+      padding:14px 14px;
+      font-size:22px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      outline:none;
+    }
+
+    .scan-input:focus{
+      border-color:#93c5fd;
+      box-shadow:0 0 0 3px #dbeafe;
+    }
+
+    .bin{
+      font-size:64px;
+      font-weight:900;
+      letter-spacing:2px;
+      margin:10px 0 4px;
+      color:#0f172a;
+    }
+
+    .detail{
+      font-size:16px;
+      margin:4px 0;
+      color:#111827;
+    }
+
+    .muted{ color:var(--muted); font-weight:600; }
+
+    .not-found{
+      color:#b91c1c;
+      font-weight:900;
+      font-size:20px;
+      padding:10px 0 0;
+    }
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      margin-top:10px;
+    }
+
+    th,td{
+      text-align:left;
+      padding:10px 8px;
+      border-bottom:1px solid var(--border);
+      font-size:14px;
+      white-space:nowrap;
+    }
+
+    th{
+      background:#f3f4f6;
+      position:sticky;
+      top:0;
+      z-index:1;
+    }
+
+    tbody tr:nth-child(even){ background:#f9fafb; }
+
+    .hidden{ display:none !important; }
+
+    /* IMPORTANT: keep file input present but visually hidden (iPad PWA friendly) */
+    #csvFile{
+      position:absolute;
+      left:-9999px;
+      width:1px;
+      height:1px;
+      opacity:0;
+    }
+  </style>
 </head>
 <body>
+  <div class="wrap">
+    <h1>PickleFinder</h1>
 
-<div id="statusBar" class="status-bar not-loaded">
-  <div>
-    <span class="status-strong">PickleFinder:</span>
-    <span id="statusText">No CSV loaded.</span>
-  </div>
-  <div class="status-actions">
-    <button id="changeCsvBtn" type="button" class="link-btn">Load / Change CSV</button>
-  </div>
-</div>
+    <div class="card" id="loaderCard">
+      <div class="row">
+        <button class="btn" id="chooseCsvBtn" type="button">Choose CSV</button>
+        <button class="btn secondary" id="changeCsvBtn" type="button">Change CSV</button>
+      </div>
 
-<!-- Hidden file input (used by the status bar button) -->
-<input type="file" id="csvFile" accept=".csv" class="hidden">
+      <!-- real file input (hidden) -->
+      <input type="file" id="csvFile" accept=".csv,text/csv" />
 
-<h1>Warehouse Bin Lookup</h1>
+      <div class="status" id="loadedStatus">
+        CSV Loaded ✅
+        <small id="loadedMeta">—</small>
+      </div>
 
-<div class="card" id="csvLoader">
-    <label><strong>1) Load CSV File</strong></label><br>
-    <div class="small" style="margin-top:6px;">
-      Tip: after you load the CSV once, this box hides and PickleFinder will stay focused on scanning.
+      <div class="muted" style="margin-top:10px; font-size:13px;">
+        Tip: Export your Shopify/Matrixify CSV and load it once at the start of the shift.
+      </div>
     </div>
-    <button id="loadCsvBtn" type="button" style="margin-top:10px;">Choose CSV…</button>
-</div>
 
-<div class="card">
-    <label><strong>2) Scan Barcode / SKU</strong></label>
-    <input type="text" id="scanInput" class="scan-input" placeholder="Scan barcode and press Enter" autofocus>
+    <div class="card">
+      <div class="muted" style="font-size:13px;">Scan Barcode / SKU</div>
+      <input type="text" id="scanInput" class="scan-input" placeholder="Scan barcode and press Enter" autocomplete="off" inputmode="none" />
+      <div id="result"></div>
 
-    <div id="result"></div>
-</div>
+      <div class="row" style="margin-top:10px;">
+        <button class="btn secondary" id="refocusBtn" type="button">Refocus Scan Box</button>
+        <button class="btn danger" id="clearResultBtn" type="button">Clear Display</button>
+      </div>
+    </div>
 
-<div class="card">
-    <strong>Scan Log</strong>
-    <button onclick="clearLog()" style="float:right;">Clear Log</button>
-    <table>
-        <thead>
+    <div class="card">
+      <div class="row">
+        <div style="font-weight:900;">Scan Log</div>
+        <button class="btn secondary" id="clearLogBtn" type="button">Clear Log</button>
+      </div>
+
+      <div style="overflow:auto; max-height:42vh; margin-top:8px;">
+        <table>
+          <thead>
             <tr>
-                <th>Time</th>
-                <th>WH Bin</th>
-                <th>Barcode</th>
-                <th>Title</th>
+              <th>Time</th>
+              <th>WH Bin</th>
+              <th>Barcode</th>
+              <th>Title</th>
             </tr>
-        </thead>
-        <tbody id="logTable"></tbody>
-    </table>
-</div>
+          </thead>
+          <tbody id="logTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 
 <script>
-let rows = [];
-let headers = [];
-let loadedMeta = { loadedAt: null, fileName: null, rowCount: 0 };
+  // ===== DATA =====
+  let rows = [];
+  let headers = [];
+  let csvLoaded = false;
 
-const statusBar = document.getElementById('statusBar');
-const statusText = document.getElementById('statusText');
-const changeCsvBtn = document.getElementById('changeCsvBtn');
-const loadCsvBtn = document.getElementById('loadCsvBtn');
-const csvLoader = document.getElementById('csvLoader');
-const csvFileInput = document.getElementById('csvFile');
-const scanInput = document.getElementById('scanInput');
-const resultDiv = document.getElementById('result');
+  // You can edit these column names if your export differs:
+  const COL_BARCODE = "Variant Barcode";
+  const COL_SKU = "Variant SKU";
+  const COL_BIN = "Variant Metafield: custom.wh_bin [single_line_text_field]";
+  const COL_TITLE = "Title";
 
-function focusScan(){
-  // small delay helps on iPad Safari after dialogs / file picker
-  setTimeout(()=>{ try{ scanInput.focus(); }catch(e){} }, 50);
-}
+  const $ = id => document.getElementById(id);
 
-function formatLoadedAt(date){
-  try{
-    return date.toLocaleString(undefined, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' });
-  }catch(e){
-    return date.toLocaleString();
+  const csvFile = $("csvFile");
+  const chooseCsvBtn = $("chooseCsvBtn");
+  const changeCsvBtn = $("changeCsvBtn");
+  const loaderCard = $("loaderCard");
+  const loadedStatus = $("loadedStatus");
+  const loadedMeta = $("loadedMeta");
+
+  const scanInput = $("scanInput");
+  const result = $("result");
+  const logTable = $("logTable");
+  const clearLogBtn = $("clearLogBtn");
+  const clearResultBtn = $("clearResultBtn");
+  const refocusBtn = $("refocusBtn");
+
+  // ===== iPad-safe: open file picker from a REAL button click =====
+  function openCsvPicker() {
+    // must happen synchronously inside user gesture handler
+    csvFile.click();
   }
-}
 
-function setStatus(loaded){
-  if(!loaded){
-    statusBar.classList.remove('loaded');
-    statusBar.classList.add('not-loaded');
-    statusText.textContent = 'No CSV loaded.';
-    return;
-  }
-  statusBar.classList.remove('not-loaded');
-  statusBar.classList.add('loaded');
-  const when = loadedMeta.loadedAt ? formatLoadedAt(loadedMeta.loadedAt) : '';
-  const name = loadedMeta.fileName ? `“${loadedMeta.fileName}”` : 'CSV';
-  statusText.textContent = `${name} loaded — ${loadedMeta.rowCount.toLocaleString()} items — Updated ${when}`;
-}
+  chooseCsvBtn.addEventListener("click", () => {
+    openCsvPicker();
+  });
 
-// Robust CSV parser (handles quotes/commas)
-function parseCSV(text){
-  const out=[]; let i=0, field='', row=[], inQuotes=false;
-  while(i<text.length){
-    const c=text[i];
-    if(c==='"'){
-      if(inQuotes && text[i+1]==='"'){ field+='"'; i++; }
-      else inQuotes=!inQuotes;
-    } else if(c===',' && !inQuotes){
-      row.push(field); field='';
-    } else if((c==='\n' || c==='\r') && !inQuotes){
-      if(field!=='' || row.length){ row.push(field); out.push(row); row=[]; field=''; }
-      if(c==='\r' && text[i+1]==='\n') i++;
-    } else {
-      field+=c;
+  changeCsvBtn.addEventListener("click", () => {
+    if (csvLoaded) {
+      const ok = confirm("Replace the currently loaded CSV?");
+      if (!ok) return;
     }
-    i++;
+    openCsvPicker();
+  });
+
+  // ===== CSV parsing (handles quoted commas) =====
+  function parseCSV(text) {
+    const out = [];
+    let i = 0, field = "", row = [], inQuotes = false;
+
+    while (i < text.length) {
+      const c = text[i];
+
+      if (c === '"') {
+        if (inQuotes && text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (c === "," && !inQuotes) {
+        row.push(field);
+        field = "";
+      } else if ((c === "\n" || c === "\r") && !inQuotes) {
+        if (field !== "" || row.length) {
+          row.push(field);
+          out.push(row);
+          row = [];
+          field = "";
+        }
+        if (c === "\r" && text[i + 1] === "\n") i++;
+      } else {
+        field += c;
+      }
+      i++;
+    }
+    if (field !== "" || row.length) {
+      row.push(field);
+      out.push(row);
+    }
+    if (out.length && out[0].length) out[0][0] = out[0][0].replace(/^\uFEFF/, "");
+    return out;
   }
-  if(field!=='' || row.length){ row.push(field); out.push(row); }
-  if(out.length && out[0].length){ out[0][0] = out[0][0].replace(/^\uFEFF/,''); }
-  return out;
-}
 
-function normalizeHeader(h){
-  return String(h ?? '').replace(/(^"|"$)/g,'').trim();
-}
+  function buildObjects(rows2d) {
+    const hdr = rows2d[0].map(h => (h || "").trim());
+    const body = rows2d.slice(1).filter(r => r && r.join("").trim() !== "");
+    const objs = body.map(r => {
+      const o = {};
+      for (let i = 0; i < hdr.length; i++) o[hdr[i]] = (r[i] ?? "").trim();
+      return o;
+    });
+    return { hdr, objs };
+  }
 
-function normalizeCell(v){
-  return String(v ?? '').replace(/(^"|"$)/g,'').trim();
-}
+  csvFile.addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
 
-function loadCsvFromFile(file){
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = function(evt){
-    const table = parseCSV(evt.target.result);
-    if(!table.length){
-      alert('CSV appears empty.');
+    const text = await file.text();
+    const rows2d = parseCSV(text);
+    const built = buildObjects(rows2d);
+
+    headers = built.hdr;
+    rows = built.objs;
+    csvLoaded = true;
+
+    const now = new Date();
+    loadedMeta.textContent =
+      `${file.name} • ${rows.length} rows • Loaded ${now.toLocaleString()}`;
+    loadedStatus.style.display = "block";
+
+    // Hide the loader controls to prevent accidental reload
+    // but keep a "Change CSV" option visible
+    chooseCsvBtn.classList.add("hidden");
+    // keep changeCsvBtn visible
+
+    // Focus scan input immediately
+    setTimeout(() => scanInput.focus(), 0);
+  });
+
+  // ===== Lookup =====
+  function lookupItem(query) {
+    if (!csvLoaded || !rows.length) {
+      result.innerHTML = `<div class="not-found">Load a CSV first.</div>`;
       return;
     }
 
-    headers = (table[0] || []).map(normalizeHeader);
-
-    rows = table.slice(1)
-      .filter(r => r && r.some(cell => normalizeCell(cell) !== ''))
-      .map(r => {
-        const obj = {};
-        headers.forEach((h, i) => obj[h] = normalizeCell(r[i]));
-        return obj;
-      });
-
-    loadedMeta.loadedAt = new Date();
-    loadedMeta.fileName = file.name || null;
-    loadedMeta.rowCount = rows.length;
-
-    // Hide loader UI after successful load to prevent accidental changes
-    csvLoader.classList.add('hidden');
-    setStatus(true);
-    focusScan();
-  };
-  reader.readAsText(file);
-}
-
-// Buttons to open the file picker
-changeCsvBtn.addEventListener('click', ()=>{
-  if(loadedMeta.loadedAt){
-    const ok = confirm('Load a different CSV? (This replaces the current file in PickleFinder.)');
-    if(!ok) { focusScan(); return; }
-  }
-  csvFileInput.value = '';
-  csvFileInput.click();
-});
-
-loadCsvBtn.addEventListener('click', ()=>{
-  csvFileInput.value = '';
-  csvFileInput.click();
-});
-
-csvFileInput.addEventListener('change', function(e){
-  const file = e.target.files && e.target.files[0];
-  if(!file) { focusScan(); return; }
-  loadCsvFromFile(file);
-});
-
-scanInput.addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-        const q = this.value.trim();
-        this.value = "";
-        lookupItem(q);
-        focusScan();
-    }
-});
-
-function lookupItem(code) {
-    if (!code) return;
-    if (rows.length === 0) {
-        resultDiv.innerHTML = '<div class="not-found">Load a CSV first</div>';
-        setStatus(false);
-        return;
-    }
+    const q = (query || "").trim();
+    if (!q) return;
 
     const match = rows.find(r =>
-        r["Variant Barcode"] === code ||
-        r["Variant SKU"] === code
+      (r[COL_BARCODE] && r[COL_BARCODE] === q) ||
+      (r[COL_SKU] && r[COL_SKU] === q)
     );
 
     if (!match) {
-        resultDiv.innerHTML = '<div class="not-found">Item not found</div>';
-        return;
+      result.innerHTML = `<div class="not-found">Not found</div>`;
+      return;
     }
 
-    const bin = match["Variant Metafield: custom.wh_bin [single_line_text_field]"] || "—";
-    const barcode = match["Variant Barcode"] || "—";
-    const title = match["Title"] || "—";
+    const bin = match[COL_BIN] || "—";
+    const barcode = match[COL_BARCODE] || "—";
+    const title = match[COL_TITLE] || "—";
 
-    resultDiv.innerHTML = \`
-        <div class="bin-display">\${bin}</div>
-        <div class="detail"><strong>Barcode:</strong> \${barcode}</div>
-        <div class="detail"><strong>Title:</strong> \${title}</div>
-    \`;
+    result.innerHTML = `
+      <div class="bin">${bin}</div>
+      <div class="detail"><strong>Barcode:</strong> ${barcode}</div>
+      <div class="detail"><strong>Title:</strong> ${title}</div>
+    `;
 
     addLog(bin, barcode, title);
-}
+  }
 
-function addLog(bin, barcode, title) {
-    const table = document.getElementById('logTable');
-    const row = table.insertRow(0);
-    row.insertCell(0).innerText = new Date().toLocaleTimeString();
-    row.insertCell(1).innerText = bin;
-    row.insertCell(2).innerText = barcode;
-    row.insertCell(3).innerText = title;
-}
+  function addLog(bin, barcode, title) {
+    const tr = document.createElement("tr");
+    const t = new Date().toLocaleTimeString();
+    tr.innerHTML = `
+      <td>${t}</td>
+      <td>${bin}</td>
+      <td>${barcode}</td>
+      <td>${title}</td>
+    `;
+    logTable.prepend(tr);
+  }
 
-function clearLog() {
-    document.getElementById('logTable').innerHTML = "";
-    focusScan();
-}
+  // ===== Scan behavior =====
+  scanInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      const q = scanInput.value;
+      scanInput.value = "";
+      lookupItem(q);
+      // always refocus for scanner workflow
+      setTimeout(() => scanInput.focus(), 0);
+    }
+  });
 
-// Keep scanner focus (helps on iPad)
-document.addEventListener('click', (e)=>{
-  // Don't steal focus during file picking
-  if(e.target && (e.target.id === 'changeCsvBtn' || e.target.id === 'loadCsvBtn')) return;
-  focusScan();
-});
+  refocusBtn.addEventListener("click", () => scanInput.focus());
 
-window.addEventListener('load', ()=>{
-  setStatus(false);
-  focusScan();
-});
-</script>
+  clearResultBtn.addEventListener("click", () => {
+    result.innerHTML = "";
+    scanInput.value = "";
+    scanInput.focus();
+  });
 
+  clearLogBtn.addEventListener("click", () => {
+    logTable.innerHTML = "";
+    scanInput.focus();
+  });
 
-<script>
-  // PWA offline cache (basic)
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(()=>{});
+  // Tap anywhere to refocus scan input (warehouse friendly)
+  document.addEventListener("touchend", () => {
+    setTimeout(() => scanInput.focus(), 0);
+  }, { passive: true });
+
+  document.addEventListener("click", (e) => {
+    // don’t steal focus when clicking buttons
+    const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : "";
+    if (tag !== "button" && tag !== "input") scanInput.focus();
+  });
+
+  // Optional service worker (won’t break if missing)
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
     });
   }
 </script>
-
 </body>
 </html>
