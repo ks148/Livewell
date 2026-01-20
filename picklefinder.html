@@ -1,444 +1,178 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PickleFinder</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PickleFinder</title>
 
-  <meta name="theme-color" content="#0f172a">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="PickleFinder">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PickleFinder">
 
-  <style>
-    :root{
-      --bg:#f7f9fc;
-      --card:#ffffff;
-      --border:#d8dee9;
-      --fg:#1f2937;
-      --muted:#6b7280;
-      --accent:#2563eb;
-      --accent2:#16a34a;
-      --accentLight:#dcfce7;
-    }
-
-    body{
-      margin:0;
-      background:var(--bg);
-      color:var(--fg);
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;
-    }
-
-    .wrap{
-      max-width:980px;
-      margin:20px auto;
-      padding:0 14px;
-    }
-
-    h1{
-      margin:0 0 10px;
-      font-size:26px;
-      color:#111827;
-      letter-spacing:.2px;
-    }
-
-    .card{
-      background:var(--card);
-      border:1px solid var(--border);
-      border-radius:12px;
-      box-shadow:0 3px 8px rgba(0,0,0,.03);
-      padding:16px;
-      margin:12px 0;
-    }
-
-    .row{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      align-items:center;
-    }
-
-    .row > *{ flex:1; }
-
-    .btn{
-      appearance:none;
-      border:none;
-      border-radius:10px;
-      padding:12px 14px;
-      font-size:16px;
-      font-weight:700;
-      cursor:pointer;
-      background:var(--accent);
-      color:white;
-      width:100%;
-    }
-
-    .btn.secondary{
-      background:#e5e7eb;
-      color:#111827;
-      font-weight:700;
-    }
-
-    .btn.danger{
-      background:#b91c1c;
-      color:white;
-    }
-
-    .status{
-      border:1px solid #86efac;
-      background:var(--accentLight);
-      border-radius:12px;
-      padding:12px 14px;
-      font-weight:800;
-      color:#14532d;
-      display:none;
-      margin-top:10px;
-    }
-
-    .status small{
-      display:block;
-      margin-top:4px;
-      font-weight:600;
-      color:#166534;
-      opacity:.9;
-    }
-
-    .scan-input{
-      width:100%;
-      padding:14px 14px;
-      font-size:22px;
-      border-radius:12px;
-      border:1px solid var(--border);
-      outline:none;
-    }
-
-    .scan-input:focus{
-      border-color:#93c5fd;
-      box-shadow:0 0 0 3px #dbeafe;
-    }
-
-    .bin{
-      font-size:64px;
-      font-weight:900;
-      letter-spacing:2px;
-      margin:10px 0 4px;
-      color:#0f172a;
-    }
-
-    .detail{
-      font-size:16px;
-      margin:4px 0;
-      color:#111827;
-    }
-
-    .muted{ color:var(--muted); font-weight:600; }
-
-    .not-found{
-      color:#b91c1c;
-      font-weight:900;
-      font-size:20px;
-      padding:10px 0 0;
-    }
-
-    table{
-      width:100%;
-      border-collapse:collapse;
-      margin-top:10px;
-    }
-
-    th,td{
-      text-align:left;
-      padding:10px 8px;
-      border-bottom:1px solid var(--border);
-      font-size:14px;
-      white-space:nowrap;
-    }
-
-    th{
-      background:#f3f4f6;
-      position:sticky;
-      top:0;
-      z-index:1;
-    }
-
-    tbody tr:nth-child(even){ background:#f9fafb; }
-
-    .hidden{ display:none !important; }
-
-    /* IMPORTANT: keep file input present but visually hidden (iPad PWA friendly) */
-    #csvFile{
-      position:absolute;
-      left:-9999px;
-      width:1px;
-      height:1px;
-      opacity:0;
-    }
-  </style>
+<style>
+  body{
+    margin:0;
+    background:#f7f9fc;
+    color:#111827;
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+  }
+  .wrap{max-width:960px;margin:20px auto;padding:0 14px;}
+  h1{margin:0 0 10px;font-size:26px;}
+  .card{
+    background:#fff;
+    border:1px solid #d8dee9;
+    border-radius:12px;
+    padding:16px;
+    margin:12px 0;
+  }
+  .btn{
+    width:100%;
+    padding:12px;
+    border-radius:10px;
+    border:none;
+    font-size:16px;
+    font-weight:800;
+    cursor:pointer;
+    background:#2563eb;
+    color:#fff;
+  }
+  .btn.secondary{background:#e5e7eb;color:#111;}
+  .status{
+    margin-top:10px;
+    padding:12px;
+    border-radius:10px;
+    background:#dcfce7;
+    border:1px solid #86efac;
+    color:#14532d;
+    font-weight:800;
+    display:none;
+  }
+  .scan{
+    width:100%;
+    padding:14px;
+    font-size:22px;
+    border-radius:12px;
+    border:1px solid #d8dee9;
+  }
+  .bin{
+    font-size:64px;
+    font-weight:900;
+    letter-spacing:2px;
+    margin-top:10px;
+  }
+  .notfound{color:#b91c1c;font-weight:900;font-size:20px;}
+  table{width:100%;border-collapse:collapse;margin-top:10px;}
+  th,td{padding:8px;border-bottom:1px solid #e5e7eb;font-size:14px;}
+  tbody tr:nth-child(even){background:#f9fafb;}
+  #csvFile{display:none;}
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>PickleFinder</h1>
 
-    <div class="card" id="loaderCard">
-      <div class="row">
-        <button class="btn" id="chooseCsvBtn" type="button">Choose CSV</button>
-        <button class="btn secondary" id="changeCsvBtn" type="button">Change CSV</button>
-      </div>
+<div class="wrap">
+  <h1>PickleFinder</h1>
 
-      <!-- real file input (hidden) -->
-      <input type="file" id="csvFile" accept=".csv,text/csv" />
-
-      <div class="status" id="loadedStatus">
-        CSV Loaded ✅
-        <small id="loadedMeta">—</small>
-      </div>
-
-      <div class="muted" style="margin-top:10px; font-size:13px;">
-        Tip: Export your Shopify/Matrixify CSV and load it once at the start of the shift.
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="muted" style="font-size:13px;">Scan Barcode / SKU</div>
-      <input type="text" id="scanInput" class="scan-input" placeholder="Scan barcode and press Enter" autocomplete="off" inputmode="none" />
-      <div id="result"></div>
-
-      <div class="row" style="margin-top:10px;">
-        <button class="btn secondary" id="refocusBtn" type="button">Refocus Scan Box</button>
-        <button class="btn danger" id="clearResultBtn" type="button">Clear Display</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="row">
-        <div style="font-weight:900;">Scan Log</div>
-        <button class="btn secondary" id="clearLogBtn" type="button">Clear Log</button>
-      </div>
-
-      <div style="overflow:auto; max-height:42vh; margin-top:8px;">
-        <table>
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>WH Bin</th>
-              <th>Barcode</th>
-              <th>Title</th>
-            </tr>
-          </thead>
-          <tbody id="logTable"></tbody>
-        </table>
-      </div>
-    </div>
+  <div class="card">
+    <button class="btn secondary" id="changeCsv">Change CSV (Safari only)</button>
+    <input type="file" id="csvFile" accept=".csv">
+    <div class="status" id="status"></div>
   </div>
 
+  <div class="card">
+    <input id="scan" class="scan" placeholder="Scan barcode or SKU" autofocus>
+    <div id="result"></div>
+  </div>
+
+  <div class="card">
+    <strong>Scan Log</strong>
+    <table>
+      <thead>
+        <tr><th>Time</th><th>Bin</th><th>Barcode</th><th>Title</th></tr>
+      </thead>
+      <tbody id="log"></tbody>
+    </table>
+  </div>
+</div>
+
 <script>
-  // ===== DATA =====
-  let rows = [];
-  let headers = [];
-  let csvLoaded = false;
+let rows = [];
+const COL_BARCODE = "Variant Barcode";
+const COL_SKU = "Variant SKU";
+const COL_BIN = "Variant Metafield: custom.wh_bin [single_line_text_field]";
+const COL_TITLE = "Title";
 
-  // You can edit these column names if your export differs:
-  const COL_BARCODE = "Variant Barcode";
-  const COL_SKU = "Variant SKU";
-  const COL_BIN = "Variant Metafield: custom.wh_bin [single_line_text_field]";
-  const COL_TITLE = "Title";
+const status = document.getElementById("status");
+const scan = document.getElementById("scan");
+const log = document.getElementById("log");
+const result = document.getElementById("result");
+const csvFile = document.getElementById("csvFile");
 
-  const $ = id => document.getElementById(id);
-
-  const csvFile = $("csvFile");
-  const chooseCsvBtn = $("chooseCsvBtn");
-  const changeCsvBtn = $("changeCsvBtn");
-  const loaderCard = $("loaderCard");
-  const loadedStatus = $("loadedStatus");
-  const loadedMeta = $("loadedMeta");
-
-  const scanInput = $("scanInput");
-  const result = $("result");
-  const logTable = $("logTable");
-  const clearLogBtn = $("clearLogBtn");
-  const clearResultBtn = $("clearResultBtn");
-  const refocusBtn = $("refocusBtn");
-
-  // ===== iPad-safe: open file picker from a REAL button click =====
-  function openCsvPicker() {
-    // must happen synchronously inside user gesture handler
-    csvFile.click();
-  }
-
-  chooseCsvBtn.addEventListener("click", () => {
-    openCsvPicker();
+function parseCSV(text){
+  const lines = text.split(/\r?\n/).filter(l=>l.trim());
+  const headers = lines.shift().split(",");
+  return lines.map(l=>{
+    const vals = l.split(",");
+    const o={};
+    headers.forEach((h,i)=>o[h]=vals[i]||"");
+    return o;
   });
+}
 
-  changeCsvBtn.addEventListener("click", () => {
-    if (csvLoaded) {
-      const ok = confirm("Replace the currently loaded CSV?");
-      if (!ok) return;
-    }
-    openCsvPicker();
-  });
-
-  // ===== CSV parsing (handles quoted commas) =====
-  function parseCSV(text) {
-    const out = [];
-    let i = 0, field = "", row = [], inQuotes = false;
-
-    while (i < text.length) {
-      const c = text[i];
-
-      if (c === '"') {
-        if (inQuotes && text[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (c === "," && !inQuotes) {
-        row.push(field);
-        field = "";
-      } else if ((c === "\n" || c === "\r") && !inQuotes) {
-        if (field !== "" || row.length) {
-          row.push(field);
-          out.push(row);
-          row = [];
-          field = "";
-        }
-        if (c === "\r" && text[i + 1] === "\n") i++;
-      } else {
-        field += c;
-      }
-      i++;
-    }
-    if (field !== "" || row.length) {
-      row.push(field);
-      out.push(row);
-    }
-    if (out.length && out[0].length) out[0][0] = out[0][0].replace(/^\uFEFF/, "");
-    return out;
+async function loadServerCSV(){
+  try{
+    const res = await fetch("bin%20locations.csv",{cache:"no-store"});
+    if(!res.ok) throw new Error("no csv");
+    const text = await res.text();
+    rows = parseCSV(text);
+    status.style.display="block";
+    status.textContent =
+      `Loaded bin locations.csv • ${rows.length} rows • ${new Date().toLocaleString()}`;
+  }catch(e){
+    status.style.display="block";
+    status.textContent = "Could not auto-load CSV. Use Safari to load manually.";
   }
+}
 
-  function buildObjects(rows2d) {
-    const hdr = rows2d[0].map(h => (h || "").trim());
-    const body = rows2d.slice(1).filter(r => r && r.join("").trim() !== "");
-    const objs = body.map(r => {
-      const o = {};
-      for (let i = 0; i < hdr.length; i++) o[hdr[i]] = (r[i] ?? "").trim();
-      return o;
-    });
-    return { hdr, objs };
-  }
+csvFile.addEventListener("change",async e=>{
+  const f=e.target.files[0];
+  if(!f) return;
+  const text=await f.text();
+  rows=parseCSV(text);
+  status.style.display="block";
+  status.textContent =
+    `Loaded ${f.name} • ${rows.length} rows • ${new Date().toLocaleString()}`;
+  scan.focus();
+});
 
-  csvFile.addEventListener("change", async (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
+document.getElementById("changeCsv").onclick=()=>{
+  csvFile.click();
+};
 
-    const text = await file.text();
-    const rows2d = parseCSV(text);
-    const built = buildObjects(rows2d);
-
-    headers = built.hdr;
-    rows = built.objs;
-    csvLoaded = true;
-
-    const now = new Date();
-    loadedMeta.textContent =
-      `${file.name} • ${rows.length} rows • Loaded ${now.toLocaleString()}`;
-    loadedStatus.style.display = "block";
-
-    // Hide the loader controls to prevent accidental reload
-    // but keep a "Change CSV" option visible
-    chooseCsvBtn.classList.add("hidden");
-    // keep changeCsvBtn visible
-
-    // Focus scan input immediately
-    setTimeout(() => scanInput.focus(), 0);
-  });
-
-  // ===== Lookup =====
-  function lookupItem(query) {
-    if (!csvLoaded || !rows.length) {
-      result.innerHTML = `<div class="not-found">Load a CSV first.</div>`;
+scan.addEventListener("keydown",e=>{
+  if(e.key==="Enter"){
+    const q=scan.value.trim();
+    scan.value="";
+    const m=rows.find(r=>r[COL_BARCODE]===q||r[COL_SKU]===q);
+    if(!m){
+      result.innerHTML='<div class="notfound">Not found</div>';
       return;
     }
-
-    const q = (query || "").trim();
-    if (!q) return;
-
-    const match = rows.find(r =>
-      (r[COL_BARCODE] && r[COL_BARCODE] === q) ||
-      (r[COL_SKU] && r[COL_SKU] === q)
-    );
-
-    if (!match) {
-      result.innerHTML = `<div class="not-found">Not found</div>`;
-      return;
-    }
-
-    const bin = match[COL_BIN] || "—";
-    const barcode = match[COL_BARCODE] || "—";
-    const title = match[COL_TITLE] || "—";
-
-    result.innerHTML = `
-      <div class="bin">${bin}</div>
-      <div class="detail"><strong>Barcode:</strong> ${barcode}</div>
-      <div class="detail"><strong>Title:</strong> ${title}</div>
+    result.innerHTML=`
+      <div class="bin">${m[COL_BIN]||"—"}</div>
+      <div><strong>Barcode:</strong> ${m[COL_BARCODE]||""}</div>
+      <div><strong>Title:</strong> ${m[COL_TITLE]||""}</div>
     `;
-
-    addLog(bin, barcode, title);
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${new Date().toLocaleTimeString()}</td>
+      <td>${m[COL_BIN]||""}</td>
+      <td>${m[COL_BARCODE]||""}</td>
+      <td>${m[COL_TITLE]||""}</td>`;
+    log.prepend(tr);
   }
+});
 
-  function addLog(bin, barcode, title) {
-    const tr = document.createElement("tr");
-    const t = new Date().toLocaleTimeString();
-    tr.innerHTML = `
-      <td>${t}</td>
-      <td>${bin}</td>
-      <td>${barcode}</td>
-      <td>${title}</td>
-    `;
-    logTable.prepend(tr);
-  }
-
-  // ===== Scan behavior =====
-  scanInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      const q = scanInput.value;
-      scanInput.value = "";
-      lookupItem(q);
-      // always refocus for scanner workflow
-      setTimeout(() => scanInput.focus(), 0);
-    }
-  });
-
-  refocusBtn.addEventListener("click", () => scanInput.focus());
-
-  clearResultBtn.addEventListener("click", () => {
-    result.innerHTML = "";
-    scanInput.value = "";
-    scanInput.focus();
-  });
-
-  clearLogBtn.addEventListener("click", () => {
-    logTable.innerHTML = "";
-    scanInput.focus();
-  });
-
-  // Tap anywhere to refocus scan input (warehouse friendly)
-  document.addEventListener("touchend", () => {
-    setTimeout(() => scanInput.focus(), 0);
-  }, { passive: true });
-
-  document.addEventListener("click", (e) => {
-    // don’t steal focus when clicking buttons
-    const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : "";
-    if (tag !== "button" && tag !== "input") scanInput.focus();
-  });
-
-  // Optional service worker (won’t break if missing)
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("sw.js").catch(() => {});
-    });
-  }
+loadServerCSV();
 </script>
 </body>
 </html>
