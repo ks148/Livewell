@@ -9,9 +9,9 @@
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto;background:#f7f9fc;margin:0;padding:20px}
   .card{background:#fff;border-radius:12px;padding:16px;margin-bottom:14px;max-width:980px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
   h1{margin:0 0 6px}
-  .sub{font-size:13px;color:#555;margin:0 0 14px}
+  .sub{font-size:13px;color:#555;margin:0 0 14px;line-height:1.35}
   input{font-size:22px;padding:10px;width:100%;border-radius:10px;border:1px solid #ccc;box-sizing:border-box}
-  .bin{font-size:56px;font-weight:800;margin:12px 0}
+  .bin{font-size:56px;font-weight:800;margin:12px 0;letter-spacing:1px}
   .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700;vertical-align:middle}
   .good{background:#dcfce7;color:#166534}
   .bad{background:#fee2e2;color:#7f1d1d}
@@ -23,21 +23,42 @@
   .meta{margin-top:8px;font-size:13px;color:#444;line-height:1.35}
   .meta strong{color:#111}
   code{background:#f3f4f6;padding:1px 6px;border-radius:6px}
+
+  .topnav{
+    display:flex; gap:10px; align-items:center;
+    padding:10px 12px; margin:0 0 14px 0;
+    background:#fff; border:1px solid #e2e8f0;
+    border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.06);
+    max-width:980px;
+  }
+  .topnav a{
+    text-decoration:none; font-weight:800; color:#0f172a;
+    padding:8px 10px; border-radius:10px;
+  }
+  .topnav a:hover{ background:#f1f5f9; }
+  .topnav .active{ background:#e2e8f0; }
 </style>
 </head>
 
 <body>
 
+<nav class="topnav">
+  <a class="active" href="./picklefinder.html">🥒 PickleFinder</a>
+  <a href="./pickle24.html">📦 Pickle24</a>
+  <a href="./index.html">🏠 Home</a>
+</nav>
+
 <h1>PickleFinder</h1>
 <p class="sub">
-  Auto-loads <strong>bin-locations.csv</strong> from this site and shows when that file was last updated.
+  Auto-loads <strong>pickle-data.csv</strong> from this site and shows when that file was last updated.
 </p>
 
 <div class="card">
   <div id="status"><span class="badge bad">Not loaded</span> Waiting…</div>
   <div id="meta" class="meta"></div>
   <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
-    <button onclick="loadCSV()">Reload from site</button>
+    <button type="button" onclick="loadCSV()">Reload from site</button>
+    <button type="button" onclick="clearLog()">Clear Log</button>
   </div>
 </div>
 
@@ -47,7 +68,6 @@
 </div>
 
 <div class="card">
-  <button onclick="clearLog()">Clear Log</button>
   <table>
     <thead><tr><th>Time</th><th>Bin</th><th>Barcode</th><th>Title</th></tr></thead>
     <tbody id="log"></tbody>
@@ -55,9 +75,10 @@
 </div>
 
 <script>
-  const CSV_URL = './bin-locations.csv';
+  // ✅ Shared repo file for BOTH tools
+  const CSV_URL = './pickle-data.csv';
 
-  // Shopify/Matrixify header names (edit if yours differ)
+  // Your header names
   const COL_BARCODE = 'Variant Barcode';
   const COL_SKU = 'Variant SKU';
   const COL_TITLE = 'Title';
@@ -65,18 +86,12 @@
 
   let rows = [];
 
-  function parseCSV(text){
-    // Simple, forgiving parser (works with “real” exports most of the time)
-    const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
-    if (!lines.length) return [];
-
-    const headers = lines.shift().split(',').map(h => h.replace(/^\uFEFF/, '').replace(/^"|"$/g,''));
-    return lines.map(l => {
-      const cells = l.split(',').map(c => c.replace(/^"|"$/g,''));
-      const o = {};
-      headers.forEach((h,i)=>o[h]=cells[i]||'');
-      return o;
-    });
+  function esc(s){
+    return String(s ?? '')
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;');
   }
 
   function setStatus(ok, msg){
@@ -89,11 +104,65 @@
   }
 
   function fmtDate(d){
-    try{
-      return new Date(d).toLocaleString();
-    }catch{
-      return String(d || '');
+    try{ return new Date(d).toLocaleString(); } catch { return String(d || ''); }
+  }
+
+  // Robust CSV parser (handles commas inside quoted titles)
+  function detectDelimiter(text) {
+    const firstLine = (text.split(/\r?\n/).find(l => l.trim() !== '') || '');
+    const candidates = [',',';','\t','|'];
+    let best = ',', bestCount = -1;
+    for (const d of candidates) {
+      const c = firstLine.split(d).length;
+      if (c > bestCount) { bestCount = c; best = d; }
     }
+    return best;
+  }
+
+  function parseCSV(text, delimiter) {
+    const out = [];
+    let i = 0, field = '', row = [], inQuotes = false;
+
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+
+    while (i < text.length) {
+      const c = text[i];
+
+      if (c === '"') {
+        if (inQuotes && text[i+1] === '"') { field += '"'; i++; }
+        else { inQuotes = !inQuotes; }
+      } else if (c === delimiter && !inQuotes) {
+        row.push(field); field = '';
+      } else if ((c === '\n' || c === '\r') && !inQuotes) {
+        if (field !== '' || row.length) {
+          row.push(field);
+          out.push(row);
+          row = [];
+          field = '';
+        }
+        if (c === '\r' && text[i+1] === '\n') i++;
+      } else {
+        field += c;
+      }
+      i++;
+    }
+    if (field !== '' || row.length) { row.push(field); out.push(row); }
+    return out;
+  }
+
+  function toObjects(matrix) {
+    if (!matrix.length) return [];
+    const headers = (matrix[0] || []).map(h => String(h ?? '').trim());
+    const objects = [];
+    for (let r = 1; r < matrix.length; r++) {
+      const line = matrix[r];
+      if (!line || !line.length) continue;
+      if (line.join('').trim() === '') continue;
+      const obj = {};
+      for (let c = 0; c < headers.length; c++) obj[headers[c]] = (line[c] ?? '').trim();
+      objects.push(obj);
+    }
+    return objects;
   }
 
   async function loadCSV(){
@@ -101,29 +170,29 @@
     setMeta('');
 
     try{
-      // Cache bust so you see updates immediately after pushing new CSV to GitHub
-      const url = CSV_URL + '?v=' + Date.now();
+      const url = CSV_URL + '?v=' + Date.now(); // cache-bust
       const res = await fetch(url, { cache: 'no-store' });
-
       if(!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      // This is the key: GitHub Pages typically provides this header
-      const lastModified = res.headers.get('last-modified'); // e.g. "Tue, 21 Jan 2026 15:04:10 GMT"
+      const lastModified = res.headers.get('last-modified');
       const etag = res.headers.get('etag');
 
       const text = await res.text();
-      rows = parseCSV(text);
+      const delim = detectDelimiter(text);
+      rows = toObjects(parseCSV(text, delim));
 
       setStatus(true, `Parsed ${rows.length} rows`);
       setMeta(`
+        <div><strong>CSV file:</strong> <code>${esc(CSV_URL)}</code></div>
         <div><strong>CSV Last Updated (server):</strong> ${lastModified ? fmtDate(lastModified) : '<span style="color:#7f1d1d;">Unknown</span>'}</div>
         <div><strong>Loaded at (this device):</strong> ${new Date().toLocaleString()}</div>
-        ${etag ? `<div><strong>ETag:</strong> <code>${etag}</code></div>` : ''}
+        ${etag ? `<div><strong>ETag:</strong> <code>${esc(etag)}</code></div>` : ''}
       `);
 
     }catch(e){
-      setStatus(false, `Couldn’t load <code>${CSV_URL}</code> — ${e.message}`);
-      setMeta(`<div style="color:#7f1d1d;"><strong>Tip:</strong> Open <code>${CSV_URL}</code> in a browser tab to confirm it exists.</div>`);
+      rows = [];
+      setStatus(false, `Couldn’t load <code>${esc(CSV_URL)}</code> — ${esc(e.message)}`);
+      setMeta(`<div style="color:#7f1d1d;"><strong>Tip:</strong> Open <code>${esc(CSV_URL)}</code> in a browser tab to confirm it exists.</div>`);
     }
   }
 
@@ -136,14 +205,6 @@
     }
   });
 
-  function esc(s){
-    return String(s ?? '')
-      .replace(/&/g,'&amp;')
-      .replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;')
-      .replace(/"/g,'&quot;');
-  }
-
   function lookup(q){
     if(!rows.length){
       document.getElementById('result').innerHTML =
@@ -151,7 +212,11 @@
       return;
     }
 
-    const m = rows.find(r => (r[COL_BARCODE] && r[COL_BARCODE]===q) || (r[COL_SKU] && r[COL_SKU]===q));
+    const m = rows.find(r =>
+      (r[COL_BARCODE] && r[COL_BARCODE]===q) ||
+      (r[COL_SKU] && r[COL_SKU]===q)
+    );
+
     if(!m){
       document.getElementById('result').innerHTML='<div class="badge bad">Not found</div>';
       return;
@@ -188,3 +253,4 @@
 
 </body>
 </html>
+
