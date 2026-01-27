@@ -52,15 +52,14 @@
   .field{display:flex;flex-direction:column;gap:6px}
   .field label{font-size:12px;font-weight:900;color:#475569}
   .field input{font-size:16px;padding:8px 10px;border-radius:10px;border:1px solid #cbd5e1;width:140px}
-  .field input.wide{width:200px}
+  .field input.wide{width:220px}
 
   .toast{position:fixed;left:20px;bottom:20px;background:#0f172a;color:#fff;
-    padding:10px 12px;border-radius:12px;font-weight:800;box-shadow:0 8px 20px rgba(0,0,0,.18);display:none;z-index:9999}
+    padding:10px 12px;border-radius:12px;font-weight:900;box-shadow:0 8px 20px rgba(0,0,0,.18);display:none;z-index:9999}
 </style>
 </head>
 
 <body>
-
 <div id="toast" class="toast"></div>
 
 <nav class="topnav">
@@ -72,8 +71,8 @@
 
 <h1>Scan Check + Putaway</h1>
 <p class="sub">
-  Scan an item to see <strong>Needed to Max</strong> for Plymouth & Green Harbor. Each successful scan is auto-added to Putaway.
-  Use <strong>Queue Update</strong> to build an Updates CSV for min/max/weight.
+  Scan to see <strong>Needed to Max</strong>. Each scan is auto-added to Putaway.
+  Use <strong>Queue Update</strong> to stage changes. Downloads use the iPad-friendly Share Sheet when possible.
 </p>
 
 <div class="card">
@@ -83,10 +82,14 @@
   <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
     <button type="button" onclick="loadCSV()">Reload from site</button>
     <button type="button" onclick="openCSV()">Open CSV</button>
-    <button type="button" onclick="clearPutaway()">Clear Putaway List</button>
+    <button type="button" onclick="clearPutaway()">Clear Putaway</button>
     <button type="button" class="primary" onclick="downloadPutaway()">Download Putaway CSV</button>
-    <button id="updatesBtn" type="button" class="primary" onclick="downloadUpdates()">
-      Download Updates CSV
+
+    <button id="btnWeight" type="button" class="primary" onclick="downloadWeightUpdates()" disabled>
+      Download Weight Updates CSV
+    </button>
+    <button id="btnMinMax" type="button" class="primary" onclick="downloadMinMaxUpdates()" disabled>
+      Download Min/Max Updates CSV
     </button>
   </div>
 
@@ -108,7 +111,7 @@
 
 <div class="card">
   <div style="font-weight:1000;margin-bottom:6px">Queued Updates Preview</div>
-  <div class="sub">If Queue Update worked, rows will appear here immediately.</div>
+  <div class="sub">Only fields you typed are kept. Blank fields are treated as “no change”.</div>
   <table>
     <thead>
       <tr>
@@ -133,15 +136,19 @@
   const COL_PLY_MAX = 'Variant Metafield: custom.maxply [number_integer]';
   const COL_GH_MAX  = 'Variant Metafield: custom.maxgh [number_integer]';
 
-  // Updates export headers
+  // Update columns (min/max) — these match your data headers
   const COL_PLY_MIN = 'Variant Metafield: custom.minply [number_integer]';
   const COL_GH_MIN  = 'Variant Metafield: custom.mingh [number_integer]';
-  // ⚠️ If your weight header differs, change this:
+
+  // ⚠️ If your weight header differs in your export, change this:
   const COL_WEIGHT  = 'Variant Metafield: custom.weight [number_decimal]';
 
   let rows = [];
-  let putaway = [];
-  let updates = new Map(); // key -> {barcode, sku, minply, maxply, mingh, maxgh, weight}
+  let putaway = []; // {time, bin, barcode, title}
+
+  // updates: only store fields the user actually typed
+  // key -> { barcode, sku, minply?, maxply?, mingh?, maxgh?, weight? }  (missing means "no change")
+  let updates = new Map();
 
   const statusEl = document.getElementById('status');
   const metaEl   = document.getElementById('meta');
@@ -150,6 +157,8 @@
   const putawayTableEl = document.getElementById('putawayTable');
   const updatesTableEl = document.getElementById('updatesTable');
   const summaryEl = document.getElementById('summary');
+  const btnWeight = document.getElementById('btnWeight');
+  const btnMinMax = document.getElementById('btnMinMax');
 
   function toast(msg){
     const t = document.getElementById('toast');
@@ -262,8 +271,18 @@
   function openCSV(){ window.open(CSV_URL, '_blank', 'noopener'); }
 
   function updateSummary(){
+    const count = updates.size;
+    let weightCount = 0, minmaxCount = 0;
+    for(const u of updates.values()){
+      if (u.weight != null) weightCount++;
+      if (u.minply!=null || u.maxply!=null || u.mingh!=null || u.maxgh!=null) minmaxCount++;
+    }
     summaryEl.innerHTML =
-      `<strong>Putaway scans:</strong> ${putaway.length} &nbsp; | &nbsp; <strong>Updates queued:</strong> ${updates.size}`;
+      `<strong>Putaway scans:</strong> ${putaway.length} &nbsp; | &nbsp; <strong>Updates queued:</strong> ${count}
+       &nbsp; (Weight: ${weightCount}, Min/Max: ${minmaxCount})`;
+
+    btnWeight.disabled = (weightCount === 0);
+    btnMinMax.disabled = (minmaxCount === 0);
   }
 
   scanEl.addEventListener('keydown', (e)=>{
@@ -304,12 +323,12 @@
     const plyNeed = Math.max(plyMax - plyOn, 0);
     const ghNeed  = Math.max(ghMax - ghOn, 0);
 
-    // current values for edit panel
-    const curMinPly = n(m[COL_PLY_MIN]);
-    const curMaxPly = n(m[COL_PLY_MAX]);
-    const curMinGh  = n(m[COL_GH_MIN]);
-    const curMaxGh  = n(m[COL_GH_MAX]);
-    const curWeight = (m[COL_WEIGHT] ?? '').toString().trim();
+    // current values (display only)
+    const curMinPly = m[COL_PLY_MIN] ?? '';
+    const curMaxPly = m[COL_PLY_MAX] ?? '';
+    const curMinGh  = m[COL_GH_MIN] ?? '';
+    const curMaxGh  = m[COL_GH_MAX] ?? '';
+    const curWeight = m[COL_WEIGHT] ?? '';
 
     // Auto add to putaway on success
     addPutaway(bin, barcode, title);
@@ -319,12 +338,12 @@
         <div class="kpi">
           <div class="label">Plymouth Needed to Max</div>
           <div class="value">${plyNeed}</div>
-          <div class="hint">Max ${plyMax} • On hand ${plyOn}</div>
+          <div class="hint">Max ${esc(plyMax)} • On hand ${esc(plyOn)}</div>
         </div>
         <div class="kpi">
           <div class="label">Green Harbor Needed to Max</div>
           <div class="value">${ghNeed}</div>
-          <div class="hint">Max ${ghMax} • On hand ${ghOn}</div>
+          <div class="hint">Max ${esc(ghMax)} • On hand ${esc(ghOn)}</div>
         </div>
       </div>
 
@@ -334,14 +353,16 @@
 
       <div class="card" style="margin-top:12px;max-width:none;background:#f8fafc;border:1px solid #e2e8f0">
         <div style="font-weight:1000;margin-bottom:6px">Update Min/Max/Weight</div>
-        <div class="sub" style="margin:0 0 10px 0">Edit values, click <strong>Queue Update</strong>. You’ll see it appear in “Queued Updates Preview”.</div>
+        <div class="sub" style="margin:0 0 10px 0">
+          Leave any field blank = <strong>no change</strong>. Only what you type gets exported.
+        </div>
 
         <div class="formRow">
-          <div class="field"><label>Min PLY</label><input id="u_minply" value="${curMinPly}" inputmode="numeric"></div>
-          <div class="field"><label>Max PLY</label><input id="u_maxply" value="${curMaxPly}" inputmode="numeric"></div>
-          <div class="field"><label>Min GH</label><input id="u_mingh" value="${curMinGh}" inputmode="numeric"></div>
-          <div class="field"><label>Max GH</label><input id="u_maxgh" value="${curMaxGh}" inputmode="numeric"></div>
-          <div class="field"><label>Weight</label><input id="u_weight" class="wide" value="${esc(curWeight)}" placeholder="e.g., 2.5"></div>
+          <div class="field"><label>Min PLY (current: ${esc(curMinPly)})</label><input id="u_minply" value="" inputmode="numeric" placeholder="(no change)"></div>
+          <div class="field"><label>Max PLY (current: ${esc(curMaxPly)})</label><input id="u_maxply" value="" inputmode="numeric" placeholder="(no change)"></div>
+          <div class="field"><label>Min GH (current: ${esc(curMinGh)})</label><input id="u_mingh" value="" inputmode="numeric" placeholder="(no change)"></div>
+          <div class="field"><label>Max GH (current: ${esc(curMaxGh)})</label><input id="u_maxgh" value="" inputmode="numeric" placeholder="(no change)"></div>
+          <div class="field"><label>Weight (current: ${esc(curWeight)})</label><input id="u_weight" class="wide" value="" placeholder="(no change)"></div>
         </div>
 
         <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
@@ -376,15 +397,30 @@
   }
 
   function queueUpdate(barcode, sku){
-    const minply = document.getElementById('u_minply')?.value ?? '';
-    const maxply = document.getElementById('u_maxply')?.value ?? '';
-    const mingh  = document.getElementById('u_mingh')?.value ?? '';
-    const maxgh  = document.getElementById('u_maxgh')?.value ?? '';
-    const weight = document.getElementById('u_weight')?.value ?? '';
-
     const key = `${barcode}|${sku}`;
-    updates.set(key, { barcode, sku, minply, maxply, mingh, maxgh, weight });
 
+    // Only store fields the user typed (blank = no change)
+    const minply = (document.getElementById('u_minply')?.value ?? '').trim();
+    const maxply = (document.getElementById('u_maxply')?.value ?? '').trim();
+    const mingh  = (document.getElementById('u_mingh')?.value ?? '').trim();
+    const maxgh  = (document.getElementById('u_maxgh')?.value ?? '').trim();
+    const weight = (document.getElementById('u_weight')?.value ?? '').trim();
+
+    const obj = { barcode, sku };
+    if (minply !== '') obj.minply = minply;
+    if (maxply !== '') obj.maxply = maxply;
+    if (mingh  !== '') obj.mingh  = mingh;
+    if (maxgh  !== '') obj.maxgh  = maxgh;
+    if (weight !== '') obj.weight = weight;
+
+    // if user left everything blank, don't queue
+    const hasChange = Object.keys(obj).some(k => !['barcode','sku'].includes(k));
+    if(!hasChange){
+      toast('Nothing typed (no update queued)');
+      return;
+    }
+
+    updates.set(key, obj);
     renderUpdatesPreview();
     updateSummary();
     toast('Update queued');
@@ -404,11 +440,11 @@
       tr.innerHTML = `
         <td>${esc(u.barcode)}</td>
         <td>${esc(u.sku)}</td>
-        <td>${esc(u.minply)}</td>
-        <td>${esc(u.maxply)}</td>
-        <td>${esc(u.mingh)}</td>
-        <td>${esc(u.maxgh)}</td>
-        <td>${esc(u.weight)}</td>
+        <td>${esc(u.minply ?? '')}</td>
+        <td>${esc(u.maxply ?? '')}</td>
+        <td>${esc(u.mingh ?? '')}</td>
+        <td>${esc(u.maxgh ?? '')}</td>
+        <td>${esc(u.weight ?? '')}</td>
       `;
       updatesTableEl.appendChild(tr);
     }
@@ -428,27 +464,69 @@
       rowsOut.push([s.bin || '', bc, s.title || '']);
     }
     const csv = rowsOut.map(r => r.map(csvCell).join(',')).join('\n');
-    downloadText(csv, `putaway_report_${new Date().toISOString().slice(0,10)}.csv`);
-    setStatus(true, 'Downloaded Putaway Report CSV');
+    saveCSV(csv, `putaway_report_${new Date().toISOString().slice(0,10)}.csv`);
+    setStatus(true, 'Putaway CSV prepared');
   }
 
-  function downloadUpdates(){
-    if(updates.size === 0){
-      setStatus(false, 'No updates queued. Scan an item → edit values → Queue Update.');
+  // Export ONLY weight updates (no min/max columns included)
+  function downloadWeightUpdates(){
+    const items = [...updates.values()].filter(u => u.weight != null);
+    if(items.length === 0){
+      setStatus(false, 'No weight updates queued');
       return;
     }
 
-    const header = ['Variant Barcode','Variant SKU', COL_PLY_MIN, COL_PLY_MAX, COL_GH_MIN, COL_GH_MAX, COL_WEIGHT];
+    const header = ['Variant Barcode','Variant SKU', COL_WEIGHT];
     const out = [header];
 
-    for(const u of updates.values()){
+    for(const u of items){
       const bc = u.barcode ? `="${String(u.barcode).replace(/"/g,'""')}"` : '';
-      out.push([bc, u.sku || '', u.minply ?? '', u.maxply ?? '', u.mingh ?? '', u.maxgh ?? '', u.weight ?? '']);
+      out.push([bc, u.sku || '', u.weight ?? '']);
     }
 
     const csv = out.map(r => r.map(csvCell).join(',')).join('\n');
-    downloadText(csv, `pickle_updates_${new Date().toISOString().slice(0,10)}.csv`);
-    setStatus(true, 'Downloaded Updates CSV');
+    saveCSV(csv, `pickle_weight_updates_${new Date().toISOString().slice(0,10)}.csv`);
+    setStatus(true, 'Weight Updates CSV prepared');
+  }
+
+  // Export ONLY min/max updates (no weight column included)
+  function downloadMinMaxUpdates(){
+    const items = [...updates.values()].filter(u =>
+      u.minply!=null || u.maxply!=null || u.mingh!=null || u.maxgh!=null
+    );
+    if(items.length === 0){
+      setStatus(false, 'No min/max updates queued');
+      return;
+    }
+
+    // Build header dynamically based on what was actually used (prevents blank columns entirely)
+    const useMinPly = items.some(u => u.minply!=null);
+    const useMaxPly = items.some(u => u.maxply!=null);
+    const useMinGh  = items.some(u => u.mingh!=null);
+    const useMaxGh  = items.some(u => u.maxgh!=null);
+
+    const header = ['Variant Barcode','Variant SKU'];
+    if(useMinPly) header.push(COL_PLY_MIN);
+    if(useMaxPly) header.push(COL_PLY_MAX);
+    if(useMinGh)  header.push(COL_GH_MIN);
+    if(useMaxGh)  header.push(COL_GH_MAX);
+
+    const out = [header];
+
+    for(const u of items){
+      const row = [];
+      const bc = u.barcode ? `="${String(u.barcode).replace(/"/g,'""')}"` : '';
+      row.push(bc, u.sku || '');
+      if(useMinPly) row.push(u.minply ?? '');
+      if(useMaxPly) row.push(u.maxply ?? '');
+      if(useMinGh)  row.push(u.mingh  ?? '');
+      if(useMaxGh)  row.push(u.maxgh  ?? '');
+      out.push(row);
+    }
+
+    const csv = out.map(r => r.map(csvCell).join(',')).join('\n');
+    saveCSV(csv, `pickle_minmax_updates_${new Date().toISOString().slice(0,10)}.csv`);
+    setStatus(true, 'Min/Max Updates CSV prepared');
   }
 
   function csvCell(v){
@@ -456,30 +534,29 @@
     return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
   }
 
-  // Stronger iOS/Safari download fallback:
-  // 1) click <a download>
-  // 2) if Safari blocks, open blob URL in new tab so user can "Share → Save to Files"
-  function downloadText(text, filename){
-    const blob = new Blob([text], {type:'text/csv;charset=utf-8;'});
-    const url = URL.createObjectURL(blob);
+  // iPad-friendly save:
+  // 1) Try Share Sheet with a real file (best on iOS)
+  // 2) Fallback: open a new tab with the CSV so user can Share → Save to Files
+  async function saveCSV(csvText, filename){
+    const blob = new Blob([csvText], {type:'text/csv;charset=utf-8;'});
+    const file = new File([blob], filename, {type:'text/csv'});
 
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.rel = 'noopener';
-    document.body.appendChild(a);
-
+    // Try iOS Share Sheet
     try{
-      a.click();
-      toast('Download started');
+      if(navigator.canShare && navigator.canShare({ files: [file] })){
+        await navigator.share({ files: [file], title: filename, text: 'Pickle Tools export' });
+        toast('Share Sheet opened (Save to Files)');
+        return;
+      }
     }catch(e){
-      // fallback
-      window.open(url, '_blank', 'noopener');
-      toast('Opened file (Save/Share)');
-    }finally{
-      a.remove();
-      setTimeout(()=>URL.revokeObjectURL(url), 2000);
+      // continue to fallback
     }
+
+    // Fallback open tab
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, '_blank', 'noopener');
+    toast(w ? 'Opened in new tab (Share → Save to Files)' : 'Popup blocked: allow popups, then retry');
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
   }
 
   // boot
