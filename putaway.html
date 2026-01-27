@@ -4,7 +4,6 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Scan Check + Putaway</title>
-
 <style>
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto;background:#f7f9fc;margin:0;padding:20px}
   .card{background:#fff;border-radius:12px;padding:16px;margin:0 0 14px 0;max-width:1100px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
@@ -56,10 +55,11 @@
 
   .toast{position:fixed;left:20px;bottom:20px;background:#0f172a;color:#fff;
     padding:10px 12px;border-radius:12px;font-weight:900;box-shadow:0 8px 20px rgba(0,0,0,.18);display:none;z-index:9999}
+  .debug{font-size:12px;color:#334155;margin-top:8px}
 </style>
 </head>
-
 <body>
+
 <div id="toast" class="toast"></div>
 
 <nav class="topnav">
@@ -71,8 +71,8 @@
 
 <h1>Scan Check + Putaway</h1>
 <p class="sub">
-  Scan to see <strong>Needed to Max</strong>. Each scan is auto-added to Putaway.
-  Use <strong>Queue Update</strong> to stage changes. Downloads use the iPad-friendly Share Sheet when possible.
+  Scan to see needed-to-max and queue min/max/weight updates.
+  This version uses event listeners (no inline onclick) so queueing works reliably.
 </p>
 
 <div class="card">
@@ -80,20 +80,17 @@
   <div id="meta" class="meta"></div>
 
   <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
-    <button type="button" onclick="loadCSV()">Reload from site</button>
-    <button type="button" onclick="openCSV()">Open CSV</button>
-    <button type="button" onclick="clearPutaway()">Clear Putaway</button>
-    <button type="button" class="primary" onclick="downloadPutaway()">Download Putaway CSV</button>
+    <button id="btnReload" type="button">Reload from site</button>
+    <button id="btnOpen" type="button">Open CSV</button>
+    <button id="btnClearPutaway" type="button">Clear Putaway</button>
+    <button id="btnPutaway" type="button" class="primary">Download Putaway CSV</button>
 
-    <button id="btnWeight" type="button" class="primary" onclick="downloadWeightUpdates()" disabled>
-      Download Weight Updates CSV
-    </button>
-    <button id="btnMinMax" type="button" class="primary" onclick="downloadMinMaxUpdates()" disabled>
-      Download Min/Max Updates CSV
-    </button>
+    <button id="btnWeight" type="button" class="primary" disabled>Download Weight Updates CSV</button>
+    <button id="btnMinMax" type="button" class="primary" disabled>Download Min/Max Updates CSV</button>
   </div>
 
   <div class="sub" id="summary" style="margin-top:10px"></div>
+  <div class="debug" id="debugLine"></div>
 </div>
 
 <div class="card">
@@ -111,7 +108,7 @@
 
 <div class="card">
   <div style="font-weight:1000;margin-bottom:6px">Queued Updates Preview</div>
-  <div class="sub">Only fields you typed are kept. Blank fields are treated as “no change”.</div>
+  <div class="sub">If Queue Update worked, rows appear here immediately.</div>
   <table>
     <thead>
       <tr>
@@ -123,9 +120,9 @@
 </div>
 
 <script>
+  // === CONFIG ===
   const CSV_URL = './pickle-data.csv';
 
-  // Headers in your export
   const COL_BARCODE = 'Variant Barcode';
   const COL_SKU     = 'Variant SKU';
   const COL_TITLE   = 'Title';
@@ -136,27 +133,36 @@
   const COL_PLY_MAX = 'Variant Metafield: custom.maxply [number_integer]';
   const COL_GH_MAX  = 'Variant Metafield: custom.maxgh [number_integer]';
 
-  // Update columns (min/max) — these match your data headers
   const COL_PLY_MIN = 'Variant Metafield: custom.minply [number_integer]';
   const COL_GH_MIN  = 'Variant Metafield: custom.mingh [number_integer]';
 
-  // ⚠️ If your weight header differs in your export, change this:
+  // If your export header differs, change this constant:
   const COL_WEIGHT  = 'Variant Metafield: custom.weight [number_decimal]';
 
+  // === STATE ===
   let rows = [];
-  let putaway = []; // {time, bin, barcode, title}
-
-  // updates: only store fields the user actually typed
-  // key -> { barcode, sku, minply?, maxply?, mingh?, maxgh?, weight? }  (missing means "no change")
+  let putaway = [];
+  // key -> { barcode, sku, minply?, maxply?, mingh?, maxgh?, weight? }
   let updates = new Map();
 
+  // Last scanned item for the update form
+  let activeBarcode = '';
+  let activeSku = '';
+
+  // === DOM ===
   const statusEl = document.getElementById('status');
-  const metaEl   = document.getElementById('meta');
+  const metaEl = document.getElementById('meta');
+  const summaryEl = document.getElementById('summary');
+  const debugEl = document.getElementById('debugLine');
+  const scanEl = document.getElementById('scan');
   const resultEl = document.getElementById('result');
-  const scanEl   = document.getElementById('scan');
   const putawayTableEl = document.getElementById('putawayTable');
   const updatesTableEl = document.getElementById('updatesTable');
-  const summaryEl = document.getElementById('summary');
+
+  const btnReload = document.getElementById('btnReload');
+  const btnOpen = document.getElementById('btnOpen');
+  const btnClearPutaway = document.getElementById('btnClearPutaway');
+  const btnPutaway = document.getElementById('btnPutaway');
   const btnWeight = document.getElementById('btnWeight');
   const btnMinMax = document.getElementById('btnMinMax');
 
@@ -177,7 +183,6 @@
     statusEl.innerHTML = `<span class="badge ${ok ? 'good' : 'bad'}">${ok ? 'Loaded' : 'Failed'}</span> ${msg}`;
   }
   function setMeta(html){ metaEl.innerHTML = html || ''; }
-  function fmtDate(d){ try{ return new Date(d).toLocaleString(); } catch { return String(d||''); } }
 
   function n(v){
     const s = String(v ?? '').replace(/[^0-9.\-]/g,'').trim();
@@ -186,7 +191,7 @@
     return Number.isFinite(x) ? x : 0;
   }
 
-  // CSV parsing (quoted commas)
+  // CSV parsing (handles quotes)
   function detectDelimiter(text) {
     const firstLine = (text.split(/\r?\n/).find(l => l.trim() !== '') || '');
     const candidates = [',',';','\t','|'];
@@ -236,6 +241,20 @@
     return objects;
   }
 
+  function updateSummary(){
+    let weightCount = 0, minmaxCount = 0;
+    for(const u of updates.values()){
+      if(u.weight != null) weightCount++;
+      if(u.minply!=null || u.maxply!=null || u.mingh!=null || u.maxgh!=null) minmaxCount++;
+    }
+    summaryEl.innerHTML =
+      `<strong>Putaway scans:</strong> ${putaway.length} &nbsp; | &nbsp; <strong>Updates queued:</strong> ${updates.size}
+       &nbsp; (Weight: ${weightCount}, Min/Max: ${minmaxCount})`;
+
+    btnWeight.disabled = (weightCount === 0);
+    btnMinMax.disabled = (minmaxCount === 0);
+  }
+
   async function loadCSV(){
     setStatus(false, 'Loading…');
     setMeta('');
@@ -256,34 +275,21 @@
       setStatus(true, `Parsed ${rows.length} rows`);
       setMeta(`
         <div><strong>CSV file:</strong> <code>${esc(CSV_URL)}</code></div>
-        <div><strong>CSV Last Updated (server):</strong> ${lastModified ? fmtDate(lastModified) : '<span style="color:#7f1d1d;">Unknown</span>'}</div>
+        <div><strong>CSV Last Updated (server):</strong> ${lastModified ? new Date(lastModified).toLocaleString() : '<span style="color:#7f1d1d;">Unknown</span>'}</div>
         <div><strong>Loaded at (this device):</strong> ${new Date().toLocaleString()}</div>
         ${etag ? `<div><strong>ETag:</strong> <code>${esc(etag)}</code></div>` : ''}
       `);
       toast('CSV loaded');
+      debugEl.textContent = '';
     }catch(e){
-      setStatus(false, `Couldn’t load <code>${esc(CSV_URL)}</code> — ${esc(e.message)}`);
+      setStatus(false, `Couldn’t load ${CSV_URL} — ${e.message}`);
       setMeta(`<div style="color:#7f1d1d;"><strong>Tip:</strong> Confirm <code>${esc(CSV_URL)}</code> exists in the repo root.</div>`);
+      debugEl.textContent = 'DEBUG: CSV load failed.';
     }
     updateSummary();
   }
 
   function openCSV(){ window.open(CSV_URL, '_blank', 'noopener'); }
-
-  function updateSummary(){
-    const count = updates.size;
-    let weightCount = 0, minmaxCount = 0;
-    for(const u of updates.values()){
-      if (u.weight != null) weightCount++;
-      if (u.minply!=null || u.maxply!=null || u.mingh!=null || u.maxgh!=null) minmaxCount++;
-    }
-    summaryEl.innerHTML =
-      `<strong>Putaway scans:</strong> ${putaway.length} &nbsp; | &nbsp; <strong>Updates queued:</strong> ${count}
-       &nbsp; (Weight: ${weightCount}, Min/Max: ${minmaxCount})`;
-
-    btnWeight.disabled = (weightCount === 0);
-    btnMinMax.disabled = (minmaxCount === 0);
-  }
 
   scanEl.addEventListener('keydown', (e)=>{
     if(e.key === 'Enter'){
@@ -315,6 +321,9 @@
     const barcode = (m[COL_BARCODE] || '').trim();
     const sku = (m[COL_SKU] || '').trim();
 
+    activeBarcode = barcode;
+    activeSku = sku;
+
     const plyOn  = n(m[COL_PLY_ON]);
     const ghOn   = n(m[COL_GH_ON]);
     const plyMax = n(m[COL_PLY_MAX]);
@@ -323,14 +332,13 @@
     const plyNeed = Math.max(plyMax - plyOn, 0);
     const ghNeed  = Math.max(ghMax - ghOn, 0);
 
-    // current values (display only)
+    // Current values for reference only
     const curMinPly = m[COL_PLY_MIN] ?? '';
     const curMaxPly = m[COL_PLY_MAX] ?? '';
     const curMinGh  = m[COL_GH_MIN] ?? '';
     const curMaxGh  = m[COL_GH_MAX] ?? '';
     const curWeight = m[COL_WEIGHT] ?? '';
 
-    // Auto add to putaway on success
     addPutaway(bin, barcode, title);
 
     resultEl.innerHTML = `
@@ -354,7 +362,7 @@
       <div class="card" style="margin-top:12px;max-width:none;background:#f8fafc;border:1px solid #e2e8f0">
         <div style="font-weight:1000;margin-bottom:6px">Update Min/Max/Weight</div>
         <div class="sub" style="margin:0 0 10px 0">
-          Leave any field blank = <strong>no change</strong>. Only what you type gets exported.
+          Leave blanks = <strong>no change</strong>. Only what you type is queued.
         </div>
 
         <div class="formRow">
@@ -366,11 +374,19 @@
         </div>
 
         <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
-          <button type="button" class="primary" onclick="queueUpdate(${JSON.stringify(barcode)},${JSON.stringify(sku)})">Queue Update</button>
-          <button type="button" onclick="removeUpdate(${JSON.stringify(barcode)},${JSON.stringify(sku)})">Remove Update</button>
+          <button id="btnQueue" type="button" class="primary">Queue Update</button>
+          <button id="btnRemove" type="button">Remove Update</button>
         </div>
+
+        <div class="debug" id="queueDebug"></div>
       </div>
     `;
+
+    // Attach listeners to the freshly-rendered buttons
+    const qBtn = document.getElementById('btnQueue');
+    const rBtn = document.getElementById('btnRemove');
+    qBtn.addEventListener('click', queueActiveUpdate);
+    rBtn.addEventListener('click', removeActiveUpdate);
   }
 
   function addPutaway(bin, barcode, title){
@@ -392,31 +408,39 @@
     putaway = [];
     putawayTableEl.innerHTML = '';
     resultEl.innerHTML = '';
+    toast('Putaway cleared');
     updateSummary();
     scanEl.focus();
   }
 
-  function queueUpdate(barcode, sku){
-    const key = `${barcode}|${sku}`;
+  function queueActiveUpdate(){
+    const dbg = document.getElementById('queueDebug');
+    if(dbg) dbg.textContent = 'Queue Update clicked ✅';
 
-    // Only store fields the user typed (blank = no change)
+    if(!activeBarcode && !activeSku){
+      toast('No active item. Scan first.');
+      return;
+    }
+
     const minply = (document.getElementById('u_minply')?.value ?? '').trim();
     const maxply = (document.getElementById('u_maxply')?.value ?? '').trim();
     const mingh  = (document.getElementById('u_mingh')?.value ?? '').trim();
     const maxgh  = (document.getElementById('u_maxgh')?.value ?? '').trim();
     const weight = (document.getElementById('u_weight')?.value ?? '').trim();
 
-    const obj = { barcode, sku };
-    if (minply !== '') obj.minply = minply;
-    if (maxply !== '') obj.maxply = maxply;
-    if (mingh  !== '') obj.mingh  = mingh;
-    if (maxgh  !== '') obj.maxgh  = maxgh;
-    if (weight !== '') obj.weight = weight;
+    const key = `${activeBarcode}|${activeSku}`;
+    const obj = { barcode: activeBarcode, sku: activeSku };
 
-    // if user left everything blank, don't queue
-    const hasChange = Object.keys(obj).some(k => !['barcode','sku'].includes(k));
+    if(minply !== '') obj.minply = minply;
+    if(maxply !== '') obj.maxply = maxply;
+    if(mingh  !== '') obj.mingh  = mingh;
+    if(maxgh  !== '') obj.maxgh  = maxgh;
+    if(weight !== '') obj.weight = weight;
+
+    const hasChange = Object.keys(obj).some(k => k !== 'barcode' && k !== 'sku');
     if(!hasChange){
-      toast('Nothing typed (no update queued)');
+      toast('Nothing typed — no update queued');
+      if(dbg) dbg.textContent = 'Queue Update clicked ✅ but nothing typed (no change).';
       return;
     }
 
@@ -424,10 +448,12 @@
     renderUpdatesPreview();
     updateSummary();
     toast('Update queued');
+    if(dbg) dbg.textContent = `Queued ✅ (total queued: ${updates.size})`;
   }
 
-  function removeUpdate(barcode, sku){
-    updates.delete(`${barcode}|${sku}`);
+  function removeActiveUpdate(){
+    const key = `${activeBarcode}|${activeSku}`;
+    updates.delete(key);
     renderUpdatesPreview();
     updateSummary();
     toast('Update removed');
@@ -450,6 +476,11 @@
     }
   }
 
+  function csvCell(v){
+    const s = v == null ? '' : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  }
+
   function downloadPutaway(){
     if(!putaway.length){
       setStatus(false, 'No putaway scans to export');
@@ -465,17 +496,14 @@
     }
     const csv = rowsOut.map(r => r.map(csvCell).join(',')).join('\n');
     saveCSV(csv, `putaway_report_${new Date().toISOString().slice(0,10)}.csv`);
-    setStatus(true, 'Putaway CSV prepared');
   }
 
-  // Export ONLY weight updates (no min/max columns included)
   function downloadWeightUpdates(){
     const items = [...updates.values()].filter(u => u.weight != null);
     if(items.length === 0){
       setStatus(false, 'No weight updates queued');
       return;
     }
-
     const header = ['Variant Barcode','Variant SKU', COL_WEIGHT];
     const out = [header];
 
@@ -483,13 +511,10 @@
       const bc = u.barcode ? `="${String(u.barcode).replace(/"/g,'""')}"` : '';
       out.push([bc, u.sku || '', u.weight ?? '']);
     }
-
     const csv = out.map(r => r.map(csvCell).join(',')).join('\n');
     saveCSV(csv, `pickle_weight_updates_${new Date().toISOString().slice(0,10)}.csv`);
-    setStatus(true, 'Weight Updates CSV prepared');
   }
 
-  // Export ONLY min/max updates (no weight column included)
   function downloadMinMaxUpdates(){
     const items = [...updates.values()].filter(u =>
       u.minply!=null || u.maxply!=null || u.mingh!=null || u.maxgh!=null
@@ -499,7 +524,6 @@
       return;
     }
 
-    // Build header dynamically based on what was actually used (prevents blank columns entirely)
     const useMinPly = items.some(u => u.minply!=null);
     const useMaxPly = items.some(u => u.maxply!=null);
     const useMinGh  = items.some(u => u.mingh!=null);
@@ -519,29 +543,22 @@
       row.push(bc, u.sku || '');
       if(useMinPly) row.push(u.minply ?? '');
       if(useMaxPly) row.push(u.maxply ?? '');
-      if(useMinGh)  row.push(u.mingh  ?? '');
-      if(useMaxGh)  row.push(u.maxgh  ?? '');
+      if(useMinGh)  row.push(u.mingh ?? '');
+      if(useMaxGh)  row.push(u.maxgh ?? '');
       out.push(row);
     }
 
     const csv = out.map(r => r.map(csvCell).join(',')).join('\n');
     saveCSV(csv, `pickle_minmax_updates_${new Date().toISOString().slice(0,10)}.csv`);
-    setStatus(true, 'Min/Max Updates CSV prepared');
-  }
-
-  function csvCell(v){
-    const s = v == null ? '' : String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
   }
 
   // iPad-friendly save:
-  // 1) Try Share Sheet with a real file (best on iOS)
-  // 2) Fallback: open a new tab with the CSV so user can Share → Save to Files
+  // 1) Try Share Sheet with a File
+  // 2) Fallback: open a new tab with the blob (Share → Save to Files)
   async function saveCSV(csvText, filename){
     const blob = new Blob([csvText], {type:'text/csv;charset=utf-8;'});
     const file = new File([blob], filename, {type:'text/csv'});
 
-    // Try iOS Share Sheet
     try{
       if(navigator.canShare && navigator.canShare({ files: [file] })){
         await navigator.share({ files: [file], title: filename, text: 'Pickle Tools export' });
@@ -549,20 +566,26 @@
         return;
       }
     }catch(e){
-      // continue to fallback
+      // fall through to tab
     }
 
-    // Fallback open tab
     const url = URL.createObjectURL(blob);
     const w = window.open(url, '_blank', 'noopener');
-    toast(w ? 'Opened in new tab (Share → Save to Files)' : 'Popup blocked: allow popups, then retry');
+    toast(w ? 'Opened in new tab (Share → Save to Files)' : 'Popup blocked — allow popups then retry');
     setTimeout(()=>URL.revokeObjectURL(url), 4000);
   }
+
+  // === TOP BUTTONS ===
+  btnReload.addEventListener('click', loadCSV);
+  btnOpen.addEventListener('click', openCSV);
+  btnClearPutaway.addEventListener('click', clearPutaway);
+  btnPutaway.addEventListener('click', downloadPutaway);
+  btnWeight.addEventListener('click', downloadWeightUpdates);
+  btnMinMax.addEventListener('click', downloadMinMaxUpdates);
 
   // boot
   loadCSV();
   updateSummary();
 </script>
-
 </body>
 </html>
