@@ -72,7 +72,7 @@
 <h1>Scan Check + Putaway</h1>
 <p class="sub">
   Scan an item to see <strong>Needed to Max</strong> for Plymouth & Green Harbor. Every successful scan is auto-added to Putaway.
-  Edit values → <strong>Queue Update</strong> → download streamlined update CSVs that contain only <strong>Variant ID</strong> + the changed fields.
+  Edit values → <strong>Queue Update</strong> → exports contain only <strong>Variant ID</strong> + the changed fields.
 </p>
 
 <div class="card">
@@ -108,7 +108,7 @@
 
 <div class="card">
   <div style="font-weight:1000;margin-bottom:6px">Queued Updates Preview</div>
-  <div class="sub">Rows appear here immediately after you click <strong>Queue Update</strong>.</div>
+  <div class="sub">Shows Variant ID + only the fields you typed.</div>
   <table>
     <thead>
       <tr>
@@ -125,24 +125,21 @@
   // =========================
   const CSV_URL = './pickle-data.csv';
 
-  // Identifiers / core fields
   const COL_VARIANT_ID = 'Variant ID';
   const COL_BARCODE    = 'Variant Barcode';
   const COL_SKU        = 'Variant SKU';
   const COL_TITLE      = 'Title';
   const COL_BIN        = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
 
-  // On-hand + max fields for "needed to max"
   const COL_PLY_ON     = 'Inventory Available: Plymouth';
   const COL_GH_ON      = 'Inventory Available: Green Harbor';
   const COL_PLY_MAX    = 'Variant Metafield: custom.maxply [number_integer]';
   const COL_GH_MAX     = 'Variant Metafield: custom.maxgh [number_integer]';
 
-  // Min/Max metafields we want to update
   const COL_PLY_MIN    = 'Variant Metafield: custom.minply [number_integer]';
   const COL_GH_MIN     = 'Variant Metafield: custom.mingh [number_integer]';
 
-  // Weight header in YOUR export:
+  // Your export header for weight:
   const COL_WEIGHT     = 'Variant Weight';
 
   // =========================
@@ -155,7 +152,6 @@
   // variantId -> { variantId, minply?, maxply?, mingh?, maxgh?, weight? }
   let updates = new Map();
 
-  // last scanned item context
   let activeVariantId = '';
   let activeBarcode = '';
   let activeSku = '';
@@ -214,6 +210,39 @@
     return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
   }
 
+  function updateSummary(){
+    let weightCount = 0, minmaxCount = 0;
+    for(const u of updates.values()){
+      if(u.weight != null) weightCount++;
+      if(u.minply!=null || u.maxply!=null || u.mingh!=null || u.maxgh!=null) minmaxCount++;
+    }
+    summaryEl.innerHTML =
+      `<strong>Putaway scans:</strong> ${putaway.length} &nbsp; | &nbsp; <strong>Updates queued:</strong> ${updates.size}
+       &nbsp; (Weight: ${weightCount}, Min/Max: ${minmaxCount})`;
+
+    btnWeight.disabled = (weightCount === 0);
+    btnMinMax.disabled = (minmaxCount === 0);
+  }
+
+  // Save CSV (iPad-friendly)
+  async function saveCSV(csvText, filename){
+    const blob = new Blob([csvText], {type:'text/csv;charset=utf-8;'});
+    const file = new File([blob], filename, {type:'text/csv'});
+
+    try{
+      if(navigator.canShare && navigator.canShare({ files: [file] })){
+        await navigator.share({ files: [file], title: filename, text: 'Pickle Tools export' });
+        toast('Share Sheet opened (Save to Files)');
+        return;
+      }
+    }catch(e){}
+
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, '_blank', 'noopener');
+    toast(w ? 'Opened in new tab (Share → Save to Files)' : 'Popup blocked — allow popups then retry');
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  }
+
   // CSV parsing (quoted commas)
   function detectDelimiter(text) {
     const firstLine = (text.split(/\r?\n/).find(l => l.trim() !== '') || '');
@@ -266,44 +295,6 @@
     return objects;
   }
 
-  function updateSummary(){
-    let weightCount = 0, minmaxCount = 0;
-    for(const u of updates.values()){
-      if(u.weight != null) weightCount++;
-      if(u.minply!=null || u.maxply!=null || u.mingh!=null || u.maxgh!=null) minmaxCount++;
-    }
-
-    summaryEl.innerHTML =
-      `<strong>Putaway scans:</strong> ${putaway.length} &nbsp; | &nbsp; <strong>Updates queued:</strong> ${updates.size}
-       &nbsp; (Weight: ${weightCount}, Min/Max: ${minmaxCount})`;
-
-    btnWeight.disabled = (weightCount === 0);
-    btnMinMax.disabled = (minmaxCount === 0);
-  }
-
-  // iPad-friendly save:
-  // 1) Share Sheet with a File (best on iOS)
-  // 2) Fallback: open a new tab (Share → Save to Files)
-  async function saveCSV(csvText, filename){
-    const blob = new Blob([csvText], {type:'text/csv;charset=utf-8;'});
-    const file = new File([blob], filename, {type:'text/csv'});
-
-    try{
-      if(navigator.canShare && navigator.canShare({ files: [file] })){
-        await navigator.share({ files: [file], title: filename, text: 'Pickle Tools export' });
-        toast('Share Sheet opened (Save to Files)');
-        return;
-      }
-    }catch(e){
-      // fall through
-    }
-
-    const url = URL.createObjectURL(blob);
-    const w = window.open(url, '_blank', 'noopener');
-    toast(w ? 'Opened in new tab (Share → Save to Files)' : 'Popup blocked — allow popups then retry');
-    setTimeout(()=>URL.revokeObjectURL(url), 4000);
-  }
-
   // =========================
   // LOAD CSV
   // =========================
@@ -332,11 +323,8 @@
         ${etag ? `<div><strong>ETag:</strong> <code>${esc(etag)}</code></div>` : ''}
       `);
 
-      // Quick sanity:
       const hasVid = rows.length ? (COL_VARIANT_ID in rows[0]) : false;
-      debugEl.textContent = hasVid
-        ? ''
-        : `DEBUG: CSV loaded but "${COL_VARIANT_ID}" column not found in first row. If your header is different, update COL_VARIANT_ID constant.`;
+      debugEl.textContent = hasVid ? '' : `DEBUG: "${COL_VARIANT_ID}" column not found. Update COL_VARIANT_ID if your header differs.`;
 
       toast('CSV loaded');
     }catch(e){
@@ -396,7 +384,6 @@
     const plyNeed = Math.max(plyMax - plyOn, 0);
     const ghNeed  = Math.max(ghMax - ghOn, 0);
 
-    // Current values (reference only)
     const curMinPly = m[COL_PLY_MIN] ?? '';
     const curMaxPly = m[COL_PLY_MAX] ?? '';
     const curMinGh  = m[COL_GH_MIN] ?? '';
@@ -497,7 +484,6 @@
     );
     const rowsOut = [['bin','barcode','title']];
     for(const s of sorted){
-      // preserve leading zeros in barcode for Excel by exporting as formula string
       const bc = s.barcode ? `="${String(s.barcode).replace(/"/g,'""')}"` : '';
       rowsOut.push([s.bin || '', bc, s.title || '']);
     }
@@ -506,14 +492,14 @@
   }
 
   // =========================
-  // QUEUE UPDATES (Variant ID based)
+  // QUEUE UPDATES
   // =========================
   function queueActiveUpdate(){
     const dbg = document.getElementById('queueDebug');
     if(dbg) dbg.textContent = 'Queue Update clicked ✅';
 
     if(!activeVariantId){
-      toast('Missing Variant ID for this item — cannot queue');
+      toast('Missing Variant ID — cannot queue');
       if(dbg) dbg.textContent = 'Missing Variant ID — cannot queue.';
       return;
     }
@@ -570,10 +556,10 @@
   }
 
   // =========================
-  // STREAMLINED UPDATE EXPORTS
+  // STREAMLINED EXPORTS
   // =========================
 
-  // Weight Updates: Variant ID + Variant Weight ONLY
+  // Weight Updates: EXACTLY 2 columns => Variant ID, Variant Weight
   function downloadWeightUpdates(){
     const items = [...updates.values()].filter(u => u.weight != null);
     if(items.length === 0){
@@ -590,7 +576,9 @@
     saveCSV(csv, `pickle_weight_updates_${new Date().toISOString().slice(0,10)}.csv`);
   }
 
-  // Min/Max Updates: Variant ID + ONLY the min/max columns that were actually edited at least once
+  // Min/Max Updates:
+  // Header includes ONLY the min/max columns that were actually edited anywhere in queue.
+  // Each row has Variant ID + values for those columns (blank if not changed for that variant).
   function downloadMinMaxUpdates(){
     const items = [...updates.values()].filter(u =>
       u.minply!=null || u.maxply!=null || u.mingh!=null || u.maxgh!=null
@@ -600,11 +588,13 @@
       return;
     }
 
+    // Determine EXACTLY which min/max fields exist in the queue
     const useMinPly = items.some(u => u.minply!=null);
     const useMaxPly = items.some(u => u.maxply!=null);
     const useMinGh  = items.some(u => u.mingh!=null);
     const useMaxGh  = items.some(u => u.maxgh!=null);
 
+    // If you only edited ONE field (e.g., maxply), this header will be only 2 columns total.
     const header = ['Variant ID'];
     if(useMinPly) header.push(COL_PLY_MIN);
     if(useMaxPly) header.push(COL_PLY_MAX);
