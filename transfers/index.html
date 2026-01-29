@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pick Builder</title>
+
+<link rel="manifest" href="../manifest.json">
+<meta name="theme-color" content="#0f172a">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+  body{font-family:system-ui;background:#f7f9fc;padding:20px;margin:0}
+  .card{background:#fff;border-radius:12px;padding:16px;margin:0 0 16px 0;box-shadow:0 2px 8px rgba(0,0,0,.06);max-width:1200px}
+  h1{margin:0 0 6px}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  select,button{padding:9px 12px;font-size:14px;border-radius:10px;border:1px solid #cbd5e1;background:#fff;font-weight:700}
+  button{cursor:pointer}
+  button.primary{background:#2563eb;border-color:#2563eb;color:#fff}
+  .badge{display:inline-block;font-size:12px;font-weight:800;padding:2px 10px;border-radius:999px}
+  .good{background:#dcfce7;color:#166534}
+  .bad{background:#fee2e2;color:#7f1d1d}
+  .muted{color:#64748b;font-size:13px;line-height:1.35}
+  table{width:100%;border-collapse:collapse;margin-top:12px;font-size:14px}
+  th,td{border-bottom:1px solid #e2e8f0;padding:8px;text-align:left;vertical-align:top}
+  thead th{background:#f1f5f9;position:sticky;top:0}
+  tbody tr:nth-child(even){background:#f8fafc}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:8px}
+
+  .topnav{
+    display:flex; gap:10px; align-items:center;
+    padding:10px 12px; margin:0 0 14px 0;
+    background:#fff; border:1px solid #e2e8f0;
+    border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.06);
+    max-width:1200px;
+  }
+  .topnav a{
+    text-decoration:none; font-weight:800; color:#0f172a;
+    padding:8px 10px; border-radius:10px;
+  }
+  .topnav a:hover{ background:#f1f5f9; }
+  .topnav .active{ background:#e2e8f0; }
+</style>
+</head>
+
+<body>
+
+<nav class="topnav">
+  <a href="../">🏠 Home</a>
+  <a href="../bin/">🥒 Bin Lookup</a>
+  <a href="../transfers/">📦 Pick Builder</a>
+  <a href="../putaway/">🧾 Scan + Putaway</a>
+</nav>
+
+
+<h1>Pick Builder</h1>
+<p class="muted">
+  Auto-loads <strong>pickle-data.csv</strong>. Trigger: <code>Dest On Hand &lt; Dest Min</code>. Pick fills to max, limited by source availability.
+</p>
+
+<div class="card">
+  <div class="row" style="justify-content:space-between">
+    <div>
+      <div id="status"><span class="badge bad">Not loaded</span> Waiting…</div>
+      <div id="meta" class="muted" style="margin-top:6px"></div>
+    </div>
+    <div class="row">
+      <button type="button" onclick="loadCSV()">Reload from site</button>
+      <button type="button" onclick="openCSV()">Open CSV</button>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div style="font-weight:900;margin-bottom:10px">Choose transfer lanes</div>
+  <div class="row">
+    <label style="font-weight:800">Pick FROM:</label>
+    <select id="fromLoc">
+      <option value="warehouse">Warehouse-66</option>
+      <option value="green">Green Harbor</option>
+      <option value="plymouth">Plymouth</option>
+    </select>
+
+    <label style="font-weight:800">Pick TO:</label>
+    <select id="toLoc">
+      <option value="plymouth">Plymouth</option>
+      <option value="green">Green Harbor</option>
+    </select>
+
+    <button id="buildBtn" class="primary" type="button">Build Pick</button>
+    <button id="downloadBtn" type="button">Download Pick CSV</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="row" style="justify-content:space-between">
+    <div style="font-weight:900">Pick Results</div>
+    <div class="muted" id="summary"></div>
+  </div>
+
+  <div style="overflow:auto;max-height:60vh;margin-top:10px">
+    <table>
+      <thead>
+        <tr>
+          <th style="min-width:170px">Barcode</th>
+          <th style="min-width:280px">Title</th>
+          <th style="min-width:120px">Option1</th>
+          <th style="min-width:120px">Option2</th>
+          <th style="min-width:140px">WH Bin</th>
+          <th style="min-width:90px">Pick Qty</th>
+          <th style="min-width:130px">Source Avail</th>
+          <th style="min-width:130px">Dest On Hand</th>
+          <th style="min-width:110px">Dest Min</th>
+          <th style="min-width:110px">Dest Max</th>
+          <th style="min-width:140px">From → To</th>
+        </tr>
+      </thead>
+      <tbody id="results"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  // ✅ Shared repo file
+  const CSV_URL = '../pickle-data.csv';
+
+  // Your exact headers
+  const COL_BARCODE = 'Variant Barcode';
+  const COL_SKU = 'Variant SKU';
+  const COL_TITLE = 'Title';
+  const COL_OPT1 = 'Option1 Value';
+  const COL_OPT2 = 'Option2 Value';
+  const COL_WH_BIN = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
+
+  const COL_PLY_ON = 'Inventory Available: Plymouth';
+  const COL_GH_ON  = 'Inventory Available: Green Harbor';
+  const COL_WH_AV  = 'Inventory Available: Warehouse-66';
+
+  const COL_PLY_MIN = 'Variant Metafield: custom.minply [number_integer]';
+  const COL_PLY_MAX = 'Variant Metafield: custom.maxply [number_integer]';
+  const COL_GH_MIN  = 'Variant Metafield: custom.mingh [number_integer]';
+  const COL_GH_MAX  = 'Variant Metafield: custom.maxgh [number_integer]';
+
+  let rows = [];
+  let lastPick = [];
+
+  const statusEl = document.getElementById('status');
+  const metaEl = document.getElementById('meta');
+  const resultsEl = document.getElementById('results');
+  const summaryEl = document.getElementById('summary');
+
+  function setStatus(ok, msg){
+    statusEl.innerHTML = `<span class="badge ${ok ? 'good' : 'bad'}">${ok ? 'Loaded' : 'Failed'}</span> ${msg}`;
+  }
+  function setMeta(html){ metaEl.innerHTML = html || ''; }
+  function fmtDate(d){ try{ return new Date(d).toLocaleString(); } catch { return String(d||''); } }
+
+  function detectDelimiter(text) {
+    const firstLine = (text.split(/\r?\n/).find(l => l.trim() !== '') || '');
+    const candidates = [',',';','\t','|'];
+    let best = ',', bestCount = -1;
+    for (const d of candidates) {
+      const c = firstLine.split(d).length;
+      if (c > bestCount) { bestCount = c; best = d; }
+    }
+    return best;
+  }
+  function parseCSV(text, delimiter) {
+    const out = [];
+    let i = 0, field = '', row = [], inQuotes = false;
+
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+
+    while (i < text.length) {
+      const c = text[i];
+      if (c === '"') {
+        if (inQuotes && text[i+1] === '"') { field += '"'; i++; }
+        else { inQuotes = !inQuotes; }
+      } else if (c === delimiter && !inQuotes) {
+        row.push(field); field = '';
+      } else if ((c === '\n' || c === '\r') && !inQuotes) {
+        if (field !== '' || row.length) { row.push(field); out.push(row); row = []; field = ''; }
+        if (c === '\r' && text[i+1] === '\n') i++;
+      } else {
+        field += c;
+      }
+      i++;
+    }
+    if (field !== '' || row.length) { row.push(field); out.push(row); }
+    return out;
+  }
+  function toObjects(matrix) {
+    if (!matrix.length) return [];
+    const headers = (matrix[0] || []).map(h => String(h ?? '').trim());
+    const objects = [];
+    for (let r = 1; r < matrix.length; r++) {
+      const line = matrix[r];
+      if (!line || !line.length) continue;
+      if (line.join('').trim() === '') continue;
+      const obj = {};
+      for (let c = 0; c < headers.length; c++) obj[headers[c]] = (line[c] ?? '').trim();
+      objects.push(obj);
+    }
+    return objects;
+  }
+  function n(v) {
+    const s = String(v ?? '').replace(/[^0-9.\-]/g,'').trim();
+    if (!s) return 0;
+    const x = Number(s);
+    return Number.isFinite(x) ? x : 0;
+  }
+
+  async function loadCSV(){
+    setStatus(false, 'Loading…');
+    setMeta('');
+    try{
+      const url = CSV_URL + '?v=' + Date.now(); // cache-bust
+      const res = await fetch(url, { cache: 'no-store' });
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const lastModified = res.headers.get('last-modified');
+      const etag = res.headers.get('etag');
+
+      const text = await res.text();
+      const delim = detectDelimiter(text);
+      rows = toObjects(parseCSV(text, delim));
+      lastPick = [];
+      resultsEl.innerHTML = '';
+      summaryEl.textContent = '';
+
+      setStatus(true, `Parsed ${rows.length} rows`);
+      setMeta(`
+        <div><strong>CSV file:</strong> <code>${CSV_URL}</code></div>
+        <div><strong>CSV Last Updated (server):</strong> ${lastModified ? fmtDate(lastModified) : 'Unknown'}</div>
+        <div><strong>Loaded at (this device):</strong> ${new Date().toLocaleString()}</div>
+        ${etag ? `<div><strong>ETag:</strong> <code>${etag}</code></div>` : ''}
+      `);
+    }catch(e){
+      rows = [];
+      setStatus(false, `Couldn’t load <code>${CSV_URL}</code> — ${e.message}`);
+      setMeta(`<div style="color:#7f1d1d"><strong>Tip:</strong> Confirm <code>${CSV_URL}</code> exists in the repo root.</div>`);
+    }
+  }
+
+  function openCSV(){ window.open(CSV_URL, '_blank', 'noopener'); }
+
+  function locLabel(v){
+    if (v === 'warehouse') return 'Warehouse-66';
+    if (v === 'green') return 'Green Harbor';
+    return 'Plymouth';
+  }
+
+  function buildPick(){
+    if(!rows.length){
+      setStatus(false, 'No data loaded');
+      return;
+    }
+    const from = document.getElementById('fromLoc').value;
+    const to = document.getElementById('toLoc').value;
+    if(from === to){
+      setStatus(false, 'From and To cannot be the same');
+      return;
+    }
+
+    const picks = [];
+    let totalUnits = 0;
+
+    for(const r of rows){
+      const sourceAvail =
+        (from === 'warehouse') ? n(r[COL_WH_AV]) :
+        (from === 'green') ? n(r[COL_GH_ON]) :
+        n(r[COL_PLY_ON]);
+
+      if(sourceAvail <= 0) continue;
+
+      const destOn  = (to === 'plymouth') ? n(r[COL_PLY_ON]) : n(r[COL_GH_ON]);
+      const destMin = (to === 'plymouth') ? n(r[COL_PLY_MIN]) : n(r[COL_GH_MIN]);
+      const destMax = (to === 'plymouth') ? n(r[COL_PLY_MAX]) : n(r[COL_GH_MAX]);
+
+      if(!(destOn < destMin)) continue;
+
+      const needToMax = Math.max(destMax - destOn, 0);
+      const pickQty = Math.min(needToMax, sourceAvail);
+      if(pickQty <= 0) continue;
+
+      picks.push({
+        barcode: r[COL_BARCODE] || '',
+        sku: r[COL_SKU] || '',
+        title: r[COL_TITLE] || '',
+        opt1: r[COL_OPT1] || '',
+        opt2: r[COL_OPT2] || '',
+        whbin: r[COL_WH_BIN] || '',
+        pickQty,
+        sourceAvail,
+        destOn, destMin, destMax,
+        lane: `${locLabel(from)} → ${locLabel(to)}`
+      });
+      totalUnits += pickQty;
+    }
+
+    resultsEl.innerHTML = '';
+    for(const p of picks){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${p.barcode}</td>
+        <td>${p.title}</td>
+        <td>${p.opt1}</td>
+        <td>${p.opt2}</td>
+        <td>${p.whbin}</td>
+        <td><strong>${p.pickQty}</strong></td>
+        <td>${p.sourceAvail}</td>
+        <td>${p.destOn}</td>
+        <td>${p.destMin}</td>
+        <td>${p.destMax}</td>
+        <td>${p.lane}</td>
+      `;
+      resultsEl.appendChild(tr);
+    }
+
+    lastPick = picks;
+    setStatus(true, `Built ${picks.length} pick lines`);
+    summaryEl.textContent = `${locLabel(from)} → ${locLabel(to)} • Lines: ${picks.length} • Units: ${totalUnits}`;
+  }
+
+  function downloadPick(){
+    if(!lastPick.length){
+      setStatus(false, 'No pick built yet');
+      return;
+    }
+    const from = document.getElementById('fromLoc').value;
+    const to = document.getElementById('toLoc').value;
+
+    const esc = (v) => {
+      const s = v == null ? '' : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+    };
+
+    const out = [];
+    out.push(['barcode','sku','title','option1','option2','wh_bin','pick_qty','from','to']);
+
+    for(const p of lastPick){
+      // preserve leading zeros in Excel
+      const barcode = p.barcode ? `="${p.barcode.replace(/"/g,'""')}"` : '';
+      out.push([barcode, p.sku, p.title, p.opt1, p.opt2, p.whbin, p.pickQty, locLabel(from), locLabel(to)]);
+    }
+
+    const csv = out.map(r => r.map(esc).join(',')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `transfer_pick_${from}_to_${to}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    setStatus(true, 'Downloaded pick CSV');
+  }
+
+  document.getElementById('buildBtn').addEventListener('click', buildPick);
+  document.getElementById('downloadBtn').addEventListener('click', downloadPick);
+
+  // boot
+  loadCSV();
+</script>
+
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('../sw.js').catch(()=>{});
+    });
+  }
+</script>
+
+</body>
+</html>
