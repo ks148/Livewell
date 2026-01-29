@@ -1,55 +1,113 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Livewell</title>
-  
-<link rel="manifest" href="./manifest.json">
-<meta name="theme-color" content="#0f172a">
-<style>
-    body{font-family:system-ui;background:#f7f9fc;padding:20px}
-    .card{
-      background:#fff;
-      border-radius:12px;
-      padding:18px;
-      max-width:760px;
-      box-shadow:0 2px 8px rgba(0,0,0,.06)
+
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#0f172a">
+
+  <style>
+    :root{
+      --bg:#f7f9fc; --card:#fff; --text:#0f172a; --muted:#475569; --line:#e2e8f0;
+      --goodbg:#dcfce7; --good:#166534; --badbg:#fee2e2; --bad:#7f1d1d;
+      --blue:#1d4ed8; --blue2:#2563eb;
     }
-    a{
-      display:block;
-      text-decoration:none;
-      font-weight:900;
-      font-size:18px;
-      color:#0f172a;
-      padding:14px 14px;
-      border:1px solid #e2e8f0;
-      border-radius:12px;
-      margin:10px 0;
-      background:#fff
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto;background:var(--bg);margin:0;padding:18px;color:var(--text)}
+    .wrap{max-width:980px;margin:0 auto}
+    .card{background:var(--card);border-radius:16px;padding:18px;margin-bottom:14px;
+      box-shadow:0 2px 10px rgba(0,0,0,.06);border:1px solid rgba(226,232,240,.7)}
+    h1{margin:0 0 6px;font-size:34px}
+    .sub{margin:0;color:var(--muted);font-size:13px;line-height:1.35}
+    .tools{display:grid;grid-template-columns:1fr;gap:10px;margin-top:14px}
+    a.tool{
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+      text-decoration:none;font-weight:1000;font-size:18px;color:var(--text);
+      padding:14px 14px;border:1px solid var(--line);border-radius:14px;background:#fff
     }
-    a:hover{background:#f1f5f9}
-    h1{margin:0 0 10px}
-    p{margin:0 0 14px;color:#475569}
+    a.tool:hover{background:#f1f5f9}
+    .desc{font-size:13px;color:var(--muted);font-weight:700}
+    .right{display:flex;align-items:center;gap:10px;color:var(--muted);font-weight:900}
+    .badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:900;vertical-align:middle}
+    .good{background:var(--goodbg);color:var(--good)}
+    .bad{background:var(--badbg);color:var(--bad)}
+    code{background:#f3f4f6;padding:2px 6px;border-radius:8px}
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Livewell</h1>
-    <p>Choose a tool:</p>
+  <div class="wrap">
+    <div class="card">
+      <h1>Livewell</h1>
+      <p class="sub">Warehouse + retail utilities. Built for iPad + scanner: fast answers, low mistakes.</p>
 
-    <a href="./bin/">🥒 Bin Lookup</a>
-    <a href="./transfers/">📦 Pick Builder</a>
-    <a href="./putaway/">🧾 Scan + Putaway</a>
+      <div style="margin-top:12px" class="sub">
+        Data source: <code>pickle-data.csv</code> • Status: <span id="status"><span class="badge bad">Checking…</span></span>
+        <span id="meta"></span>
+      </div>
+
+      <div class="tools">
+        <a class="tool" href="./bin/">
+          <div>
+            <div>📍 Bin Lookup</div>
+            <div class="desc">Scan → see WH bin instantly + scan log.</div>
+          </div>
+          <div class="right">Open →</div>
+        </a>
+
+        <a class="tool" href="./transfers/">
+          <div>
+            <div>📦 Transfers</div>
+            <div class="desc">Build a pick from one location to another using min-trigger logic.</div>
+          </div>
+          <div class="right">Open →</div>
+        </a>
+
+        <a class="tool" href="./putaway/">
+          <div>
+            <div>🧾 Scan + Putaway</div>
+            <div class="desc">Scan → needed to max (PLY/GH) + putaway list + minimal update CSVs.</div>
+          </div>
+          <div class="right">Open →</div>
+        </a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:1000;margin-bottom:6px">Daily workflow</div>
+      <div class="sub">
+        1) Update <code>pickle-data.csv</code> in the repo • 2) Use tools on the floor • 3) Export update CSVs and import to Shopify as needed.
+      </div>
+    </div>
   </div>
 
 <script>
+  const CSV_URL = './pickle-data.csv';
+
+  function fmtDate(d){ try{ return new Date(d).toLocaleString(); }catch{ return String(d||''); } }
+
+  async function checkCSV(){
+    const status = document.getElementById('status');
+    const meta = document.getElementById('meta');
+    try{
+      const res = await fetch(CSV_URL + '?v=' + Date.now(), { cache: 'no-store' });
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      const lastModified = res.headers.get('last-modified');
+      status.innerHTML = '<span class="badge good">Ready</span>';
+      meta.innerHTML = lastModified ? ' • Last updated: <strong>' + fmtDate(lastModified) + '</strong>' : '';
+    }catch(e){
+      status.innerHTML = '<span class="badge bad">Data missing</span>';
+      meta.innerHTML = ' • Put <code>pickle-data.csv</code> in the repo root.';
+    }
+  }
+
+  checkCSV();
+
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./sw.js').catch(()=>{});
     });
   }
 </script>
-
 </body>
 </html>
