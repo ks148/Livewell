@@ -1,3 +1,5 @@
+Livewell Tools v1 — feature-complete
+
 Livewell Tools
 
 Internal operational tools for multi-location retail inventory.
