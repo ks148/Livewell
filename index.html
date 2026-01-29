@@ -4,7 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Livewell</title>
-  <style>
+  
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#0f172a">
+<style>
     body{font-family:system-ui;background:#f7f9fc;padding:20px}
     .card{
       background:#fff;
@@ -35,9 +38,18 @@
     <h1>Livewell</h1>
     <p>Choose a tool:</p>
 
-    <a href="./picklefinder.html">🥒 Bin Lookup</a>
-    <a href="./pickle24.html">📦 Pick Builder</a>
-    <a href="./putaway.html">🧾 Scan + Putaway</a>
+    <a href="./bin/">🥒 Bin Lookup</a>
+    <a href="./transfers/">📦 Pick Builder</a>
+    <a href="./putaway/">🧾 Scan + Putaway</a>
   </div>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    });
+  }
+</script>
+
 </body>
 </html>

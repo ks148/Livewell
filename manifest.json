@@ -1,7 +1,7 @@
 {
-  "name": "PickleFinder",
-  "short_name": "PickleFinder",
-  "start_url": "./picklefinder.html",
+  "name": "Livewell",
+  "short_name": "Livewell",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#0f172a",
@@ -16,5 +16,6 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "scope": "./"
 }
