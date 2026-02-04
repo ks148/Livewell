@@ -35,13 +35,35 @@
   .btnPrimary:hover{background:var(--blue2)}
   .btn[disabled]{opacity:.5;cursor:not-allowed}
   select{padding:10px 12px;font-size:14px;border-radius:12px;border:1px solid #cbd5e1;background:#fff;font-weight:900}
+  label{font-weight:1000}
   table{width:100%;border-collapse:collapse;font-size:14px}
   th,td{border-bottom:1px solid var(--line);padding:10px;text-align:left;vertical-align:top}
-  thead th{background:#f1f5f9;position:sticky;top:0}
+  thead th{background:#f1f5f9;position:sticky;top:0;z-index:2}
   tbody tr:nth-child(even){background:#f8fafc}
   .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
   .kpi{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
   .kpi .pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px;font-weight:1000;background:#fff}
+  .chk{display:flex;align-items:center;gap:8px}
+  .chk input{transform:scale(1.2)}
+  .groupRow td{
+    background:#eef2ff !important;
+    font-weight:1000;
+    border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+    position:sticky;
+    top:44px; /* sits under sticky header */
+    z-index:1;
+  }
+  .groupTag{
+    display:inline-block;
+    padding:2px 10px;
+    border-radius:999px;
+    background:#dbeafe;
+    border:1px solid #bfdbfe;
+    font-size:12px;
+    font-weight:1000;
+    margin-left:8px;
+  }
 </style>
 </head>
 
@@ -73,21 +95,36 @@
 
   <div class="card">
     <div style="font-weight:1000;margin-bottom:6px">Transfer lane</div>
-    <div class="sub" style="margin-top:0">Pick FROM one location and send TO another. Then download the pick CSV.</div>
+    <div class="sub" style="margin-top:0">
+      Pick FROM one location and send TO another. Or choose <strong>Both</strong> to build a single pick that splits quantities by destination.
+    </div>
 
     <div class="row" style="margin-top:10px">
-      <label style="font-weight:1000">Pick FROM:</label>
+      <label>Pick FROM:</label>
       <select id="fromLoc">
         <option value="warehouse">Warehouse-66</option>
         <option value="green">Green Harbor</option>
         <option value="plymouth">Plymouth</option>
       </select>
 
-      <label style="font-weight:1000">Pick TO:</label>
+      <label>Pick TO:</label>
       <select id="toLoc">
         <option value="plymouth">Plymouth</option>
         <option value="green">Green Harbor</option>
+        <option value="both">Both (PLY + GH)</option>
       </select>
+
+      <label>Pick Order:</label>
+      <select id="pickOrder">
+        <option value="default">Default</option>
+        <option value="binwalk" selected>Bin Walk (Bay→Shelf→Bin)</option>
+        <option value="title">Title</option>
+      </select>
+
+      <div class="chk" title="Insert Bay headers (BB01, BB02...) when sorting by bins">
+        <input id="groupHeaders" type="checkbox" checked>
+        <label for="groupHeaders" style="font-weight:900">Bay Headers</label>
+      </div>
 
       <button id="buildBtn" class="btn btnPrimary" type="button">Build Pick</button>
       <button id="downloadBtn" class="btn" type="button" disabled>Download Pick CSV</button>
@@ -111,11 +148,19 @@
             <th style="min-width:120px">Option1</th>
             <th style="min-width:120px">Option2</th>
             <th style="min-width:140px">WH Bin</th>
-            <th style="min-width:90px">Pick Qty</th>
-            <th style="min-width:130px">Source Avail</th>
-            <th style="min-width:130px">Dest On Hand</th>
-            <th style="min-width:110px">Dest Min</th>
-            <th style="min-width:110px">Dest Max</th>
+
+            <th style="min-width:95px">PLY Pick</th>
+            <th style="min-width:95px">GH Pick</th>
+            <th style="min-width:120px">WH Avail</th>
+
+            <th style="min-width:120px">PLY On Hand</th>
+            <th style="min-width:100px">PLY Min</th>
+            <th style="min-width:100px">PLY Max</th>
+
+            <th style="min-width:120px">GH On Hand</th>
+            <th style="min-width:100px">GH Min</th>
+            <th style="min-width:100px">GH Max</th>
+
             <th style="min-width:140px">From → To</th>
           </tr>
         </thead>
@@ -263,6 +308,55 @@
     return 'Plymouth';
   }
 
+  function needToMaxIfTriggered(onHand, min, max){
+    if (!(onHand < min)) return 0;
+    return Math.max(max - onHand, 0);
+  }
+
+  // Expected format: BB01-01-01  (Bay)-(Shelf)-(Bin)
+  // Returns { bay, shelf, bin, ok, sortKey }
+  function parseWhBin(raw){
+    const s = String(raw || '').trim().toUpperCase();
+    // strict-ish match: letters+digits for bay, then -NN-NN
+    const m = s.match(/^([A-Z]{2}\d{2})-(\d{2})-(\d{2})$/);
+    if (m){
+      const bay = m[1];
+      const shelf = Number(m[2]);
+      const bin = Number(m[3]);
+      return { bay, shelf, bin, ok:true, sortKey:`${bay}-${String(shelf).padStart(2,'0')}-${String(bin).padStart(2,'0')}` };
+    }
+    // If it’s blank or not in the final format yet, push it to the bottom.
+    return { bay:'ZZZ', shelf:999, bin:999, ok:false, sortKey:'ZZZ-99-99' };
+  }
+
+  function compareBinWalk(a, b){
+    // Sort by parsed bay/shelf/bin then title then barcode
+    const pa = a._binParsed, pb = b._binParsed;
+    if (pa.bay !== pb.bay) return pa.bay < pb.bay ? -1 : 1;
+    if (pa.shelf !== pb.shelf) return pa.shelf - pb.shelf;
+    if (pa.bin !== pb.bin) return pa.bin - pb.bin;
+
+    const ta = (a.title || '').toUpperCase();
+    const tb = (b.title || '').toUpperCase();
+    if (ta !== tb) return ta < tb ? -1 : 1;
+
+    const ba = String(a.barcode || '');
+    const bb = String(b.barcode || '');
+    if (ba !== bb) return ba < bb ? -1 : 1;
+
+    return 0;
+  }
+
+  function compareTitle(a, b){
+    const ta = (a.title || '').toUpperCase();
+    const tb = (b.title || '').toUpperCase();
+    if (ta !== tb) return ta < tb ? -1 : 1;
+    const ba = String(a.barcode || '');
+    const bb = String(b.barcode || '');
+    if (ba !== bb) return ba < bb ? -1 : 1;
+    return 0;
+  }
+
   function buildPick(){
     if(!rows.length){
       setStatus(false, 'No data loaded');
@@ -270,8 +364,10 @@
     }
     const from = document.getElementById('fromLoc').value;
     const to = document.getElementById('toLoc').value;
+    const pickOrder = document.getElementById('pickOrder').value;
+    const groupHeaders = document.getElementById('groupHeaders').checked;
 
-    if(from === to){
+    if(to !== 'both' && from === to){
       setStatus(false, 'From and To cannot be the same');
       downloadBtn.disabled = true;
       return;
@@ -279,6 +375,8 @@
 
     const picks = [];
     let totalUnits = 0;
+    let totalPLY = 0;
+    let totalGH = 0;
 
     for(const r of rows){
       const sourceAvail =
@@ -288,15 +386,50 @@
 
       if(sourceAvail <= 0) continue;
 
-      const destOn  = (to === 'plymouth') ? n(r[COL_PLY_ON]) : n(r[COL_GH_ON]);
-      const destMin = (to === 'plymouth') ? n(r[COL_PLY_MIN]) : n(r[COL_GH_MIN]);
-      const destMax = (to === 'plymouth') ? n(r[COL_PLY_MAX]) : n(r[COL_GH_MAX]);
+      const plyOn  = n(r[COL_PLY_ON]);
+      const plyMin = n(r[COL_PLY_MIN]);
+      const plyMax = n(r[COL_PLY_MAX]);
 
-      if(!(destOn < destMin)) continue;
+      const ghOn   = n(r[COL_GH_ON]);
+      const ghMin  = n(r[COL_GH_MIN]);
+      const ghMax  = n(r[COL_GH_MAX]);
 
-      const needToMax = Math.max(destMax - destOn, 0);
-      const pickQty = Math.min(needToMax, sourceAvail);
-      if(pickQty <= 0) continue;
+      let plyPick = 0, ghPick = 0;
+
+      if(to === 'both'){
+        const needPLY = needToMaxIfTriggered(plyOn, plyMin, plyMax);
+        const needGH  = needToMaxIfTriggered(ghOn, ghMin, ghMax);
+
+        if(needPLY <= 0 && needGH <= 0) continue;
+
+        // Allocate source availability across both destinations (PLY first, then GH).
+        plyPick = Math.min(needPLY, sourceAvail);
+        const remaining = Math.max(sourceAvail - plyPick, 0);
+        ghPick = Math.min(needGH, remaining);
+
+        if(plyPick <= 0 && ghPick <= 0) continue;
+      } else {
+        const destOn  = (to === 'plymouth') ? plyOn : ghOn;
+        const destMin = (to === 'plymouth') ? plyMin : ghMin;
+        const destMax = (to === 'plymouth') ? plyMax : ghMax;
+
+        const need = needToMaxIfTriggered(destOn, destMin, destMax);
+        if(need <= 0) continue;
+
+        const pickQty = Math.min(need, sourceAvail);
+        if(pickQty <= 0) continue;
+
+        if(to === 'plymouth') plyPick = pickQty;
+        if(to === 'green') ghPick = pickQty;
+      }
+
+      const unitSum = (plyPick + ghPick);
+      totalUnits += unitSum;
+      totalPLY += plyPick;
+      totalGH += ghPick;
+
+      const whbinRaw = r[COL_WH_BIN] || '';
+      const parsed = parseWhBin(whbinRaw);
 
       picks.push({
         barcode: r[COL_BARCODE] || '',
@@ -304,17 +437,48 @@
         title: r[COL_TITLE] || '',
         opt1: r[COL_OPT1] || '',
         opt2: r[COL_OPT2] || '',
-        whbin: r[COL_WH_BIN] || '',
-        pickQty,
-        sourceAvail,
-        destOn, destMin, destMax,
-        lane: `${locLabel(from)} → ${locLabel(to)}`
+        whbin: whbinRaw,
+        whAvail: sourceAvail,
+
+        plyPick,
+        ghPick,
+
+        plyOn, plyMin, plyMax,
+        ghOn, ghMin, ghMax,
+
+        lane: (to === 'both')
+          ? `${locLabel(from)} → Both`
+          : `${locLabel(from)} → ${locLabel(to)}`,
+
+        _binParsed: parsed
       });
-      totalUnits += pickQty;
     }
 
+    // Sort
+    if (pickOrder === 'binwalk') picks.sort(compareBinWalk);
+    else if (pickOrder === 'title') picks.sort(compareTitle);
+    // default = keep insertion order
+
+    // Render (with optional bay headers)
     resultsEl.innerHTML = '';
+    let currentBay = null;
+    const useHeaders = (pickOrder === 'binwalk') && groupHeaders;
+
     for(const p of picks){
+      if (useHeaders){
+        const bayLabel = p._binParsed.ok ? p._binParsed.bay : 'NO BIN';
+        if (bayLabel !== currentBay){
+          currentBay = bayLabel;
+          const trGroup = document.createElement('tr');
+          trGroup.className = 'groupRow';
+          trGroup.innerHTML = `<td colspan="15">
+            ${bayLabel}
+            <span class="groupTag">${(bayLabel === 'NO BIN') ? 'needs bin' : 'bay'}</span>
+          </td>`;
+          resultsEl.appendChild(trGroup);
+        }
+      }
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td class="mono">${p.barcode}</td>
@@ -322,11 +486,19 @@
         <td>${p.opt1}</td>
         <td>${p.opt2}</td>
         <td class="mono">${p.whbin}</td>
-        <td><strong>${p.pickQty}</strong></td>
-        <td>${p.sourceAvail}</td>
-        <td>${p.destOn}</td>
-        <td>${p.destMin}</td>
-        <td>${p.destMax}</td>
+
+        <td><strong>${p.plyPick}</strong></td>
+        <td><strong>${p.ghPick}</strong></td>
+        <td>${p.whAvail}</td>
+
+        <td>${p.plyOn}</td>
+        <td>${p.plyMin}</td>
+        <td>${p.plyMax}</td>
+
+        <td>${p.ghOn}</td>
+        <td>${p.ghMin}</td>
+        <td>${p.ghMax}</td>
+
         <td>${p.lane}</td>
       `;
       resultsEl.appendChild(tr);
@@ -334,11 +506,17 @@
 
     lastPick = picks;
 
-    const lane = `${locLabel(from)} → ${locLabel(to)}`;
+    const lane = (to === 'both')
+      ? `${locLabel(from)} → Both`
+      : `${locLabel(from)} → ${locLabel(to)}`;
+
     summaryEl.innerHTML = `
       <span class="pill"><strong>Lane:</strong> ${lane}</span>
       <span class="pill"><strong>Lines:</strong> ${picks.length}</span>
       <span class="pill"><strong>Units:</strong> ${totalUnits}</span>
+      <span class="pill"><strong>PLY Units:</strong> ${totalPLY}</span>
+      <span class="pill"><strong>GH Units:</strong> ${totalGH}</span>
+      <span class="pill"><strong>Order:</strong> ${document.getElementById('pickOrder').selectedOptions[0].text}</span>
     `;
 
     hintEl.textContent = picks.length ? 'Review then download the pick CSV.' : 'No items matched the rule for this lane.';
@@ -361,12 +539,28 @@
     };
 
     const out = [];
-    out.push(['barcode','sku','title','option1','option2','wh_bin','pick_qty','from','to']);
+    out.push([
+      'barcode','sku','title','option1','option2','wh_bin',
+      'wh_available','pick_plymouth','pick_greenharbor',
+      'from','to'
+    ]);
 
     for(const p of lastPick){
       // preserve leading zeros in Excel
       const barcode = p.barcode ? `="${p.barcode.replace(/"/g,'""')}"` : '';
-      out.push([barcode, p.sku, p.title, p.opt1, p.opt2, p.whbin, p.pickQty, locLabel(from), locLabel(to)]);
+      out.push([
+        barcode,
+        p.sku,
+        p.title,
+        p.opt1,
+        p.opt2,
+        p.whbin,
+        p.whAvail,
+        p.plyPick,
+        p.ghPick,
+        locLabel(from),
+        (to === 'both') ? 'Both' : locLabel(to)
+      ]);
     }
 
     const csv = out.map(r => r.map(esc).join(',')).join('\n');
@@ -385,6 +579,10 @@
 
   document.getElementById('buildBtn').addEventListener('click', buildPick);
   document.getElementById('downloadBtn').addEventListener('click', downloadPick);
+
+  // If user changes sort/grouping, rebuild instantly (nice workflow)
+  document.getElementById('pickOrder').addEventListener('change', () => { if (lastPick.length) buildPick(); });
+  document.getElementById('groupHeaders').addEventListener('change', () => { if (lastPick.length) buildPick(); });
 
   // boot
   loadCSV();
