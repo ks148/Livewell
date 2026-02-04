@@ -1,43 +1,44 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
+<meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Scan Check + Putaway</title>
-
+<title>Scan / Putaway</title>
 <style>
   :root{
-    --bg:#f7f9fc; --card:#fff; --text:#0f172a; --muted:#475569; --line:#e2e8f0;
-    --goodbg:#dcfce7; --good:#166534; --badbg:#fee2e2; --bad:#7f1d1d;
-    --blue:#1d4ed8; --blue2:#2563eb;
+    --bg:#f7f9fc;
+    --card:#fff;
+    --text:#0f172a;
+    --muted:#475569;
+    --line:#e2e8f0;
+    --good:#166534; --goodbg:#dcfce7;
+    --bad:#7f1d1d;  --badbg:#fee2e2;
+    --warn:#9a3412; --warnbg:#ffedd5;
+    --btn:#fff;
+    --shadow:0 2px 10px rgba(0,0,0,.06);
   }
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto;background:var(--bg);margin:0;padding:18px;color:var(--text)}
   .wrap{max-width:1100px;margin:0 auto}
-  .topnav{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-  .topnav a{display:inline-block;text-decoration:none;font-weight:900;color:var(--text);
-    padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#fff}
-  .topnav a:hover{background:#f1f5f9}
-  h1{margin:6px 0 6px;font-size:34px}
-  .sub{margin:0 0 14px;color:var(--muted);font-size:13px;line-height:1.35}
-  .card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:0 2px 10px rgba(0,0,0,.06);border:1px solid rgba(226,232,240,.7)}
+  .card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:var(--shadow);border:1px solid rgba(226,232,240,.7)}
+  h1{margin:0 0 6px;font-size:30px}
+  .sub{margin:0 0 12px;color:var(--muted);font-size:13px;line-height:1.35}
   .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .grid2{display:grid;grid-template-columns:1fr;gap:14px}
+  @media(min-width:980px){ .grid2{grid-template-columns:1.2fr .8fr} }
+  input{font-size:22px;padding:12px 12px;width:100%;border-radius:14px;border:1px solid #cbd5e1;box-sizing:border-box;background:#fff}
+  label{display:block;font-size:12px;color:#64748b;font-weight:900;margin:6px 0}
+  .btn{padding:10px 12px;border-radius:12px;border:1px solid var(--line);font-weight:900;cursor:pointer;background:var(--btn)}
+  .btn:active{transform:translateY(1px)}
+  .btnPrimary{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+  .btnDanger{background:#fff1f2;border-color:#fecdd3;color:#9f1239}
   .badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:900;vertical-align:middle}
   .good{background:var(--goodbg);color:var(--good)}
   .bad{background:var(--badbg);color:var(--bad)}
-  code{background:#f3f4f6;padding:2px 6px;border-radius:8px}
-  .btn{padding:10px 12px;border-radius:12px;border:1px solid var(--line);font-weight:900;cursor:pointer;background:#fff}
-  .btn:active{transform:translateY(1px)}
-  .btnPrimary{background:var(--blue);border-color:var(--blue);color:#fff}
-  .btnPrimary:hover{background:var(--blue2)}
-  .btnWarn{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
-  .btnDanger{background:#fff1f2;border-color:#fecdd3;color:#9f1239}
-  input{font-size:22px;padding:12px 12px;width:100%;border-radius:14px;border:1px solid #cbd5e1;box-sizing:border-box}
-  .grid2{display:grid;grid-template-columns:1fr;gap:14px}
-  @media(min-width:980px){ .grid2{grid-template-columns:1.25fr .75fr} }
-  .mini{font-size:12px;color:#64748b}
-  .kpi{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-  .pill{border:1px solid rgba(226,232,240,.9);border-radius:999px;padding:6px 10px;background:#fff;font-weight:900;font-size:12px;color:#334155}
-  .bigbin{font-size:56px;font-weight:1000;letter-spacing:0.5px;margin:10px 0 8px}
+  .warn{background:var(--warnbg);color:var(--warn)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .hr{height:1px;background:var(--line);margin:14px 0}
+  .bigNum{font-size:64px;font-weight:1000;line-height:1}
+  .smallMeta{font-size:12px;color:#64748b;margin-top:4px}
   table{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
   th,td{padding:8px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-align:top}
   tbody tr:nth-child(even){background:#f9fafb}
@@ -47,159 +48,146 @@
     transition:all .18s ease;max-width:520px;box-shadow:0 10px 24px rgba(0,0,0,.18)
   }
   .toast.show{opacity:1;transform:translateY(0)}
-  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-  .divider{height:1px;background:#e2e8f0;margin:14px 0}
-  .hint{font-size:12px;color:#64748b;line-height:1.35}
+  .kpi{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .pill{border:1px solid rgba(226,232,240,.9);border-radius:999px;padding:6px 10px;background:#fff;font-weight:900;font-size:12px;color:#334155}
   .fieldgrid{display:grid;grid-template-columns:repeat(2, 1fr);gap:12px}
   @media(min-width:980px){ .fieldgrid{grid-template-columns:repeat(4, 1fr)} }
-  label{display:block;font-size:12px;color:#64748b;font-weight:900;margin:6px 0}
 </style>
 </head>
 
 <body>
 <div class="wrap">
 
-  <div class="topnav">
-    <a href="../">🏠 Home</a>
-    <a href="../bin/">🥒 Bin Lookup</a>
-    <a href="../transfers/">📦 Transfers</a>
-    <a href="../putaway/">🧾 Scan + Putaway</a>
-  </div>
+  <div class="card">
+    <h1>Scan / Putaway</h1>
+    <p class="sub">
+      Auto-loads <strong>pickle-data.csv</strong>. Scan SKU/barcode to see needed-to-max and WH bin.
+      Bin updates are now <strong>auto-queued on every scan</strong> (no “Queue Bin” click needed). Blank bins are allowed.
+    </p>
 
-  <h1>Scan Check + Putaway</h1>
-  <p class="sub">
-    Loads <strong>pickle-data.csv</strong> from this site. Scan a barcode or SKU to see bin + how many are needed to fill each store to max.
-    You can queue updates for <strong>Min/Max</strong>, <strong>Weight</strong>, and <strong>WH Bin</strong> and download minimal Shopify-ready CSVs.
-  </p>
-
-  <div class="grid2">
-
-    <!-- LEFT -->
-    <div>
-      <div class="card">
-        <div class="row" style="align-items:flex-start">
-          <div style="flex:2">
-            <label>Scan (barcode or SKU) and press Enter</label>
-            <input id="scan" placeholder="Scan barcode or SKU and press Enter" autofocus />
-            <div class="hint" style="margin-top:8px">Tip: most scanners “type” the code and send Enter automatically.</div>
-          </div>
-          <div style="flex:1;min-width:260px">
-            <label>Status</label>
-            <div id="status"><span class="badge bad">Not loaded</span> Waiting…</div>
-            <div id="meta" class="mini" style="margin-top:8px"></div>
-            <div class="kpi" id="kpis"></div>
-          </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <div id="result"></div>
+    <div class="row" style="align-items:flex-start">
+      <div style="flex:2">
+        <label>Scan (barcode or SKU) and press Enter</label>
+        <input id="scan" placeholder="Scan barcode or SKU and press Enter" autofocus />
       </div>
-
-      <div class="card">
-        <div class="row" style="justify-content:space-between;align-items:flex-end">
-          <div>
-            <div style="font-weight:1000;font-size:16px">Update fields (optional)</div>
-            <div class="hint">You can update only one field (leave the rest blank). Queue updates, then download the update CSVs.</div>
-          </div>
-          <div>
-            <button class="btn btnDanger" type="button" onclick="clearQueues()">Clear all update queues</button>
-          </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="fieldgrid">
-          <div>
-            <label>Variant ID (auto)</label>
-            <input id="inVariantId" class="mono" placeholder="auto from scan" disabled />
-          </div>
-          <div>
-            <label>WH Bin Location</label>
-            <input id="inBin" class="mono" placeholder="BB01-S01-B01 (can be blank to clear)" />
-          </div>
-          <div>
-            <label>Variant Weight</label>
-            <input id="inWeight" class="mono" placeholder="e.g. 0.25" />
-          </div>
-          <div></div>
-
-          <div>
-            <label>Plymouth Min</label>
-            <input id="inMinPly" class="mono" placeholder="leave blank if no change" />
-          </div>
-          <div>
-            <label>Plymouth Max</label>
-            <input id="inMaxPly" class="mono" placeholder="leave blank if no change" />
-          </div>
-          <div>
-            <label>GH Min</label>
-            <input id="inMinGh" class="mono" placeholder="leave blank if no change" />
-          </div>
-          <div>
-            <label>GH Max</label>
-            <input id="inMaxGh" class="mono" placeholder="leave blank if no change" />
-          </div>
-        </div>
-
-        <div class="row" style="margin-top:12px">
-          <button class="btn" type="button" onclick="queueMinMax()">Queue Min/Max</button>
-          <button class="btn" type="button" onclick="queueWeight()">Queue Weight</button>
-          <button class="btn" type="button" onclick="queueBin()">Queue Bin</button>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="row">
-          <button class="btn btnPrimary" type="button" onclick="downloadMinMaxCSV()">Download Min/Max Updates CSV</button>
-          <button class="btn btnPrimary" type="button" onclick="downloadWeightCSV()">Download Weight Updates CSV</button>
-          <button class="btn btnPrimary" type="button" onclick="downloadBinCSV()">Download Bin Updates CSV</button>
-        </div>
-
-        <div class="hint" style="margin-top:10px">
-          Bin Updates CSV outputs <strong>only</strong>: <code>Variant ID</code> and <code>Variant Metafield: custom.wh_bin [single_line_text_field]</code>.
-          Blank bin values are allowed (to clear a bin).
-        </div>
+      <div style="flex:1;min-width:260px">
+        <label>Status</label>
+        <div id="status"><span class="badge bad">Not loaded</span> Waiting…</div>
+        <div id="meta" class="sub" style="margin-top:8px"></div>
+        <div class="kpi" id="kpis"></div>
       </div>
     </div>
 
-    <!-- RIGHT -->
-    <div>
-      <div class="card">
-        <div class="row" style="justify-content:space-between">
-          <div>
-            <div style="font-weight:1000;font-size:16px">Putaway Report</div>
-            <div class="hint">Scans log here automatically. Download CSV sorted by bin.</div>
-          </div>
-          <div class="row" style="gap:8px">
-            <button class="btn btnWarn" type="button" onclick="undoLastScan()">Undo last scan</button>
-            <button class="btn btnDanger" type="button" onclick="clearPutaway()">Clear log</button>
+    <div class="hr"></div>
+
+    <div id="result"></div>
+  </div>
+
+  <div class="grid2">
+
+    <!-- LEFT: EDIT + UPDATES -->
+    <div class="card" id="editCard" style="display:none">
+      <div class="row" style="justify-content:space-between;align-items:flex-end">
+        <div>
+          <div style="font-weight:1000;font-size:16px">Update fields (optional)</div>
+          <div class="sub" style="margin:6px 0 0">
+            You can update only one field (leave others blank). Bin is auto-queued on scan and auto-updated as you type.
           </div>
         </div>
-
-        <table>
-          <thead>
-            <tr>
-              <th style="width:90px">Time</th>
-              <th style="width:150px">Bin</th>
-              <th style="width:160px">Barcode</th>
-              <th>Title</th>
-              <th style="width:90px"></th>
-            </tr>
-          </thead>
-          <tbody id="log"></tbody>
-        </table>
-
-        <div class="row" style="margin-top:12px">
-          <button class="btn btnPrimary" type="button" onclick="downloadPutawayCSV()">Download Putaway CSV</button>
+        <div>
+          <button class="btn btnDanger" type="button" onclick="clearEdit()">Clear Fields</button>
         </div>
       </div>
 
-      <div class="card">
-        <div style="font-weight:1000;font-size:16px;margin-bottom:6px">Queued updates preview</div>
-        <div class="hint">This is just a preview. The downloads are the Shopify-ready CSVs.</div>
-        <div id="queuePreview" style="margin-top:10px"></div>
+      <div class="hr"></div>
+
+      <div class="fieldgrid">
+        <div>
+          <label>Variant ID (auto)</label>
+          <input id="inVariantId" class="mono" disabled />
+        </div>
+        <div>
+          <label>WH Bin Location (blank allowed)</label>
+          <input id="inBin" class="mono" placeholder="BB01-S01-B01 (or leave blank to clear)" />
+        </div>
+        <div>
+          <label>Variant Weight</label>
+          <input id="inWeight" class="mono" placeholder="e.g. 0.25" />
+        </div>
+        <div></div>
+
+        <div>
+          <label>Plymouth Min</label>
+          <input id="inMinPly" class="mono" placeholder="leave blank if no change" />
+        </div>
+        <div>
+          <label>Plymouth Max</label>
+          <input id="inMaxPly" class="mono" placeholder="leave blank if no change" />
+        </div>
+        <div>
+          <label>GH Min</label>
+          <input id="inMinGh" class="mono" placeholder="leave blank if no change" />
+        </div>
+        <div>
+          <label>GH Max</label>
+          <input id="inMaxGh" class="mono" placeholder="leave blank if no change" />
+        </div>
       </div>
+
+      <div class="row" style="margin-top:12px">
+        <button class="btn btnPrimary" type="button" onclick="queueMinMax()">Queue Min/Max Update</button>
+        <button class="btn btnPrimary" type="button" onclick="queueWeight()">Queue Weight Update</button>
+        <button class="btn btnPrimary" type="button" onclick="queueBin()">Queue Bin Update</button>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="row">
+        <button class="btn btnPrimary" type="button" onclick="downloadMinMaxCSV()">Download Min/Max Updates CSV</button>
+        <button class="btn btnPrimary" type="button" onclick="downloadWeightCSV()">Download Weight Updates CSV</button>
+        <button class="btn btnPrimary" type="button" onclick="downloadBinCSV()">Download Bin Updates CSV</button>
+      </div>
+
+      <div class="sub" style="margin-top:10px">
+        Bin Updates CSV outputs only: <span class="mono">Variant ID</span> + <span class="mono">Variant Metafield: custom.wh_bin [single_line_text_field]</span>.
+      </div>
+    </div>
+
+    <!-- RIGHT: PUTAWAY -->
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div>
+          <div style="font-weight:1000;font-size:16px">Putaway Report</div>
+          <div class="sub">Scans log here automatically. Download CSV sorted by bin.</div>
+        </div>
+        <div class="row" style="gap:8px">
+          <button class="btn" type="button" onclick="undoLastScan()">Undo last scan</button>
+          <button class="btn btnDanger" type="button" onclick="clearPutaway()">Clear log</button>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width:90px">Time</th>
+            <th style="width:150px">Bin</th>
+            <th style="width:160px">Barcode</th>
+            <th>Title</th>
+            <th style="width:90px"></th>
+          </tr>
+        </thead>
+        <tbody id="log"></tbody>
+      </table>
+
+      <div class="row" style="margin-top:12px">
+        <button class="btn btnPrimary" type="button" onclick="downloadPutawayCSV()">Download Putaway CSV</button>
+      </div>
+
+      <div class="hr"></div>
+
+      <div style="font-weight:1000;font-size:16px;margin-bottom:6px">Queued updates preview</div>
+      <div class="sub">Bin updates now fill automatically after each scan (and change live when you edit the bin field).</div>
+      <div id="queuePreview" style="margin-top:10px"></div>
     </div>
 
   </div>
@@ -213,14 +201,14 @@
  * ========================= */
 const CSV_URL = '../pickle-data.csv';
 
-// Headers in your pickle-data.csv (Matrixify/Shopify export)
+// Headers in pickle-data.csv (Matrixify/Shopify export)
 const COL_BARCODE    = 'Variant Barcode';
 const COL_SKU        = 'Variant SKU';
 const COL_TITLE      = 'Title';
 const COL_VARIANT_ID = 'Variant ID';
 
-const COL_PLY_ONHAND = 'Inventory Available: Plymouth';
-const COL_GH_ONHAND  = 'Inventory Available: Green Harbor';
+const COL_INV_PLY    = 'Inventory Available: Plymouth';
+const COL_INV_GH     = 'Inventory Available: Green Harbor';
 
 const COL_MIN_PLY    = 'Variant Metafield: custom.minply [number_integer]';
 const COL_MAX_PLY    = 'Variant Metafield: custom.maxply [number_integer]';
@@ -232,6 +220,7 @@ const COL_WEIGHT     = 'Variant Weight';
 
 let rows = [];
 let currentMatch = null;
+let binAutoHooked = false;
 
 // Queues (minimal export)
 const mmQueue = new Map();   // id -> {minPly?, maxPly?, minGh?, maxGh?}
@@ -247,10 +236,8 @@ const scanHistory = [];
  * ========================= */
 function esc(s){
   return String(s ?? '')
-    .replace(/&/g,'&amp;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;');
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function toast(title, msg){
@@ -357,23 +344,34 @@ function renderQueues(){
     if(v.minGh  !== undefined) parts.push(`mingh=${v.minGh}`);
     if(v.maxGh  !== undefined) parts.push(`maxgh=${v.maxGh}`);
     return `<div class="mono"><strong>${esc(id)}</strong> → ${esc(parts.join(', '))}</div>`;
-  }).join('') || `<div class="hint">No Min/Max queued.</div>`;
+  }).join('') || `<div class="sub">No Min/Max queued.</div>`;
 
   const ww = Array.from(wQueue.entries()).map(([id,w])=>
     `<div class="mono"><strong>${esc(id)}</strong> → weight=${esc(w)}</div>`
-  ).join('') || `<div class="hint">No Weight queued.</div>`;
+  ).join('') || `<div class="sub">No Weight queued.</div>`;
 
   const bb = Array.from(bQueue.entries()).map(([id,b])=>
     `<div class="mono"><strong>${esc(id)}</strong> → wh_bin=${esc(b)}</div>`
-  ).join('') || `<div class="hint">No Bin queued.</div>`;
+  ).join('') || `<div class="sub">No Bin queued.</div>`;
 
   box.innerHTML = `
     <div><div style="font-weight:1000;margin-bottom:6px">Min/Max</div>${mm}</div>
-    <div class="divider"></div>
+    <div class="hr"></div>
     <div><div style="font-weight:1000;margin-bottom:6px">Weight</div>${ww}</div>
-    <div class="divider"></div>
+    <div class="hr"></div>
     <div><div style="font-weight:1000;margin-bottom:6px">Bin</div>${bb}</div>
   `;
+}
+
+/** =========================
+ * AUTO BIN QUEUE (NEW)
+ * ========================= */
+function autoQueueBinCurrent(){
+  if(!currentMatch) return;
+  const id = String(currentMatch[COL_VARIANT_ID] || '').trim();
+  if(!id) return;
+  const binVal = String(document.getElementById('inBin').value || '').trim(); // blank allowed
+  bQueue.set(id, binVal);
 }
 
 /** =========================
@@ -396,7 +394,7 @@ async function loadCSV(){
     setStatus(true, `Parsed ${rows.length} rows`);
     setMeta(`
       <div><strong>CSV Last Updated (server):</strong> ${lastModified ? fmtDate(lastModified) : '<span style="color:#7f1d1d">Unknown</span>'}</div>
-      <div><strong>Loaded at (this device):</strong> ${new Date().toLocaleString()}</div>
+      <div><strong>Loaded at:</strong> ${new Date().toLocaleString()}</div>
       ${etag ? `<div><strong>ETag:</strong> <span class="mono">${esc(etag)}</span></div>` : ''}
     `);
     renderQueues();
@@ -406,6 +404,37 @@ async function loadCSV(){
     rows = [];
     renderQueues();
   }
+}
+
+/** =========================
+ * MATCH + CALCS
+ * ========================= */
+function findMatch(q){
+  return rows.find(r =>
+    (r[COL_BARCODE] && String(r[COL_BARCODE]).trim() === q) ||
+    (r[COL_SKU] && String(r[COL_SKU]).trim() === q)
+  );
+}
+
+function neededToMax(onHand, maxVal){
+  const on = toNum(onHand) ?? 0;
+  const mx = toNum(maxVal);
+  if(mx === null) return '—';
+  return String(Math.max(0, mx - on));
+}
+
+// Duplicate scan guard (fast double scans)
+let lastScanKey = '';
+let lastScanAt = 0;
+function isDuplicateScan(m){
+  const key = String(m[COL_VARIANT_ID] || m[COL_BARCODE] || m[COL_SKU] || '');
+  const now = Date.now();
+  if(key && key === lastScanKey && (now - lastScanAt) < 700){
+    return true;
+  }
+  lastScanKey = key;
+  lastScanAt = now;
+  return false;
 }
 
 /** =========================
@@ -438,7 +467,7 @@ function addPutaway(m){
   putawayList.unshift(item);
   scanHistory.push(item._id);
   renderLog();
-  renderQueues();
+  renderKPIs();
 }
 
 function deleteScan(id){
@@ -448,7 +477,7 @@ function deleteScan(id){
     const h = scanHistory.lastIndexOf(id);
     if(h >= 0) scanHistory.splice(h,1);
     renderLog();
-    renderQueues();
+    renderKPIs();
   }
 }
 
@@ -461,7 +490,7 @@ function undoLastScan(){
   const idx = putawayList.findIndex(x => x._id === lastId);
   if(idx >= 0) putawayList.splice(idx, 1);
   renderLog();
-  renderQueues();
+  renderKPIs();
   toast('Undone', 'Last scan removed from putaway log.');
 }
 
@@ -469,8 +498,104 @@ function clearPutaway(){
   putawayList.length = 0;
   scanHistory.length = 0;
   renderLog();
-  renderQueues();
+  renderKPIs();
   toast('Cleared', 'Putaway log cleared.');
+}
+
+/** =========================
+ * EDIT PANEL
+ * ========================= */
+function showEditFor(match){
+  currentMatch = match;
+
+  document.getElementById('inVariantId').value = match[COL_VARIANT_ID] || '';
+  document.getElementById('inMinPly').value    = match[COL_MIN_PLY] || '';
+  document.getElementById('inMaxPly').value    = match[COL_MAX_PLY] || '';
+  document.getElementById('inMinGh').value     = match[COL_MIN_GH]  || '';
+  document.getElementById('inMaxGh').value     = match[COL_MAX_GH]  || '';
+  document.getElementById('inWeight').value    = match[COL_WEIGHT]  || '';
+  document.getElementById('inBin').value       = match[COL_WH_BIN]  || '';
+
+  document.getElementById('editCard').style.display = 'block';
+
+  // ✅ NEW: auto-queue bin on scan + keep queue updated as you type (blank allowed)
+  autoQueueBinCurrent();
+  if(!binAutoHooked){
+    binAutoHooked = true;
+    document.getElementById('inBin').addEventListener('input', () => {
+      autoQueueBinCurrent();
+      renderQueues();
+    });
+  }
+
+  renderQueues();
+}
+
+function clearEdit(){
+  document.getElementById('inMinPly').value = '';
+  document.getElementById('inMaxPly').value = '';
+  document.getElementById('inMinGh').value  = '';
+  document.getElementById('inMaxGh').value  = '';
+  document.getElementById('inWeight').value = '';
+  document.getElementById('inBin').value    = '';
+  toast('Cleared', 'Fields cleared (bin can be left blank).');
+}
+
+/** =========================
+ * QUEUE UPDATES
+ * ========================= */
+function queueMinMax(){
+  if(!currentMatch){ toast('Scan first', 'No active item.'); return; }
+  const id = String(currentMatch[COL_VARIANT_ID] || '').trim();
+  if(!id){ toast('Missing Variant ID', 'No Variant ID found in CSV.'); return; }
+
+  const minPly = toNum(document.getElementById('inMinPly').value);
+  const maxPly = toNum(document.getElementById('inMaxPly').value);
+  const minGh  = toNum(document.getElementById('inMinGh').value);
+  const maxGh  = toNum(document.getElementById('inMaxGh').value);
+
+  if(minPly === null && maxPly === null && minGh === null && maxGh === null){
+    toast('Nothing queued', 'Enter at least one min/max value.');
+    return;
+  }
+
+  const existing = mmQueue.get(id) || {};
+  if(minPly !== null) existing.minPly = minPly;
+  if(maxPly !== null) existing.maxPly = maxPly;
+  if(minGh  !== null) existing.minGh  = minGh;
+  if(maxGh  !== null) existing.maxGh  = maxGh;
+
+  mmQueue.set(id, existing);
+  toast('Queued', 'Min/Max update queued.');
+  renderQueues();
+}
+
+function queueWeight(){
+  if(!currentMatch){ toast('Scan first', 'No active item.'); return; }
+  const id = String(currentMatch[COL_VARIANT_ID] || '').trim();
+  if(!id){ toast('Missing Variant ID', 'No Variant ID found in CSV.'); return; }
+
+  const w = String(document.getElementById('inWeight').value || '').trim();
+  if(!w){
+    toast('Nothing queued', 'Enter a weight value.');
+    return;
+  }
+
+  wQueue.set(id, w);
+  toast('Queued', 'Weight update queued.');
+  renderQueues();
+}
+
+// Still available manually, but blank allowed now
+function queueBin(){
+  if(!currentMatch){ toast('Scan first', 'No active item.'); return; }
+  const id = String(currentMatch[COL_VARIANT_ID] || '').trim();
+  if(!id){ toast('Missing Variant ID', 'No Variant ID found in CSV.'); return; }
+
+  const bin = String(document.getElementById('inBin').value || '').trim(); // blank allowed
+  bQueue.set(id, bin);
+  toast('Queued', bin === '' ? 'Bin update queued (blank allowed).' : 'Bin update queued.');
+  renderQueues();
 }
 
 /** =========================
@@ -488,13 +613,12 @@ function downloadPutawayCSV(){
   });
   const headers = ['Bin','Barcode','Title'];
   const rows2d = sorted.map(r => [r.bin, r.barcode, r.title]);
-  const csv = buildCSV(headers, rows2d);
-  downloadText(`putaway-report_${new Date().toISOString().slice(0,10)}.csv`, csv);
+  downloadText(`putaway-report_${new Date().toISOString().slice(0,10)}.csv`, buildCSV(headers, rows2d));
 }
 
 function downloadMinMaxCSV(){
   if(mmQueue.size === 0){
-    toast('No updates queued', 'Scan item → edit min/max → Queue Min/Max.');
+    toast('No updates queued', 'Queue a min/max update first.');
     return;
   }
 
@@ -521,39 +645,28 @@ function downloadMinMaxCSV(){
     return row;
   });
 
-  const csv = buildCSV(headers, rows2d);
-  downloadText(`updates_minmax_${new Date().toISOString().slice(0,10)}.csv`, csv);
+  downloadText(`updates_minmax_${new Date().toISOString().slice(0,10)}.csv`, buildCSV(headers, rows2d));
 }
 
 function downloadWeightCSV(){
   if(wQueue.size === 0){
-    toast('No updates queued', 'Scan item → edit weight → Queue Weight.');
+    toast('No updates queued', 'Queue a weight update first.');
     return;
   }
   const headers = [COL_VARIANT_ID, COL_WEIGHT];
   const rows2d = Array.from(wQueue.entries()).map(([id, w]) => [id, w]);
-  const csv = buildCSV(headers, rows2d);
-  downloadText(`updates_weight_${new Date().toISOString().slice(0,10)}.csv`, csv);
+  downloadText(`updates_weight_${new Date().toISOString().slice(0,10)}.csv`, buildCSV(headers, rows2d));
 }
 
-// Bin updates: ONLY Variant ID + WH Bin (blank allowed)
+// ✅ Bin updates: ONLY Variant ID + WH Bin (blank allowed)
 function downloadBinCSV(){
   if(bQueue.size === 0){
-    toast('No updates queued', 'Scan item → edit bin → Queue Bin.');
+    toast('No updates queued', 'Scan an item (auto-queues bin), then download.');
     return;
   }
   const headers = [COL_VARIANT_ID, COL_WH_BIN];
   const rows2d = Array.from(bQueue.entries()).map(([id, bin]) => [id, bin]);
-  const csv = buildCSV(headers, rows2d);
-  downloadText(`updates_bin_${new Date().toISOString().slice(0,10)}.csv`, csv);
-}
-
-function clearQueues(){
-  mmQueue.clear();
-  wQueue.clear();
-  bQueue.clear();
-  renderQueues();
-  toast('Cleared', 'All update queues cleared.');
+  downloadText(`updates_bin_${new Date().toISOString().slice(0,10)}.csv`, buildCSV(headers, rows2d));
 }
 
 /** =========================
@@ -569,132 +682,61 @@ document.getElementById('scan').addEventListener('keydown', (e)=>{
 
 function doScan(q){
   if(!rows.length){
-    toast('CSV not loaded', 'Open this page after pickle-data.csv is available.');
+    toast('CSV not loaded', 'Click “Reload from site” first.');
+    return;
+  }
+  if(!q){
+    toast('Empty scan', 'Scan a barcode or SKU.');
     return;
   }
 
-  const m = rows.find(r =>
-    (r[COL_BARCODE] && String(r[COL_BARCODE]).trim() === q) ||
-    (r[COL_SKU] && String(r[COL_SKU]).trim() === q)
-  );
-
+  const m = findMatch(q);
   if(!m){
-    document.getElementById('result').innerHTML =
-      `<div class="badge bad">Not found</div> <span class="hint">No match for <span class="mono">${esc(q)}</span></span>`;
-    currentMatch = null;
-    document.getElementById('inVariantId').value = '';
+    document.getElementById('result').innerHTML = `<span class="badge bad">Not found</span>`;
+    toast('Not found', 'No match for that barcode/SKU.');
     return;
   }
 
-  currentMatch = m;
+  if(isDuplicateScan(m)){
+    toast('Duplicate scan ignored', 'Scanned twice too quickly.');
+    return;
+  }
 
-  // Fill editable inputs with current values
-  document.getElementById('inVariantId').value = (m[COL_VARIANT_ID] || '').trim();
-  document.getElementById('inBin').value       = (m[COL_WH_BIN] || '').trim();
-  document.getElementById('inWeight').value    = (m[COL_WEIGHT] || '').trim();
-  document.getElementById('inMinPly').value    = (m[COL_MIN_PLY] || '').trim();
-  document.getElementById('inMaxPly').value    = (m[COL_MAX_PLY] || '').trim();
-  document.getElementById('inMinGh').value     = (m[COL_MIN_GH] || '').trim();
-  document.getElementById('inMaxGh').value     = (m[COL_MAX_GH] || '').trim();
-
-  // Needed-to-max display
-  const plyOn = toNum(m[COL_PLY_ONHAND]) ?? 0;
-  const ghOn  = toNum(m[COL_GH_ONHAND]) ?? 0;
-  const plyMax= toNum(m[COL_MAX_PLY]);
-  const ghMax = toNum(m[COL_MAX_GH]);
-
-  const plyNeed = (plyMax === null) ? null : Math.max(0, plyMax - plyOn);
-  const ghNeed  = (ghMax === null)  ? null : Math.max(0, ghMax - ghOn);
+  // Calculate needed-to-max
+  const plyNeed = neededToMax(m[COL_INV_PLY], m[COL_MAX_PLY]);
+  const ghNeed  = neededToMax(m[COL_INV_GH],  m[COL_MAX_GH]);
 
   const bin = m[COL_WH_BIN] || '—';
 
   document.getElementById('result').innerHTML = `
-    <div class="bigbin mono">${esc(bin)}</div>
-    <div style="font-weight:1000;font-size:16px">${esc(m[COL_TITLE] || '')}</div>
-    <div class="hint" style="margin-top:8px">
+    <div class="grid2">
+      <div class="card" style="margin:0;border:1px solid var(--line);box-shadow:none">
+        <div style="font-weight:1000;color:#1f2937">Plymouth Needed to Max</div>
+        <div class="bigNum">${esc(plyNeed)}</div>
+        <div class="smallMeta">Max ${esc(m[COL_MAX_PLY] || '—')} • On hand ${esc(m[COL_INV_PLY] || '—')}</div>
+      </div>
+      <div class="card" style="margin:0;border:1px solid var(--line);box-shadow:none">
+        <div style="font-weight:1000;color:#1f2937">Green Harbor Needed to Max</div>
+        <div class="bigNum">${esc(ghNeed)}</div>
+        <div class="smallMeta">Max ${esc(m[COL_MAX_GH] || '—')} • On hand ${esc(m[COL_INV_GH] || '—')}</div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px;font-weight:1000">WH Bin: <span class="mono">${esc(bin)}</span></div>
+    <div style="margin-top:2px;font-size:18px;font-weight:1000">${esc(m[COL_TITLE] || '')}</div>
+    <div class="sub" style="margin:6px 0 0">
       <strong>Barcode:</strong> <span class="mono">${esc(m[COL_BARCODE] || '')}</span>
       &nbsp; | &nbsp; <strong>SKU:</strong> <span class="mono">${esc(m[COL_SKU] || '')}</span>
       &nbsp; | &nbsp; <strong>Variant ID:</strong> <span class="mono">${esc(m[COL_VARIANT_ID] || '')}</span>
     </div>
-    <div class="divider"></div>
-    <div class="row">
-      <div class="card" style="box-shadow:none;border:1px solid #e2e8f0;flex:1">
-        <div style="font-weight:1000">Plymouth</div>
-        <div class="hint"><strong>On Hand:</strong> ${esc(plyOn)}</div>
-        <div class="hint"><strong>Needed to Max:</strong> <span class="mono" style="font-weight:1000">${plyNeed === null ? '—' : esc(plyNeed)}</span></div>
-      </div>
-      <div class="card" style="box-shadow:none;border:1px solid #e2e8f0;flex:1">
-        <div style="font-weight:1000">Green Harbor</div>
-        <div class="hint"><strong>On Hand:</strong> ${esc(ghOn)}</div>
-        <div class="hint"><strong>Needed to Max:</strong> <span class="mono" style="font-weight:1000">${ghNeed === null ? '—' : esc(ghNeed)}</span></div>
-      </div>
-    </div>
   `;
 
-  // Putaway log auto
+  // Add to putaway and show edit panel (this also auto-queues bin now)
   addPutaway(m);
+  showEditFor(m);
 }
 
-/** =========================
- * QUEUE UPDATES
- * ========================= */
-function queueMinMax(){
-  if(!currentMatch){ toast('Scan first', 'No active item.'); return; }
-  const id = (currentMatch[COL_VARIANT_ID] || '').trim();
-  if(!id){ toast('Missing Variant ID', 'This item has no Variant ID in the CSV.'); return; }
-
-  const minPly = toNum(document.getElementById('inMinPly').value);
-  const maxPly = toNum(document.getElementById('inMaxPly').value);
-  const minGh  = toNum(document.getElementById('inMinGh').value);
-  const maxGh  = toNum(document.getElementById('inMaxGh').value);
-
-  if(minPly === null && maxPly === null && minGh === null && maxGh === null){
-    toast('Nothing queued', 'Enter at least one min/max value.');
-    return;
-  }
-
-  const existing = mmQueue.get(id) || {};
-  if(minPly !== null) existing.minPly = minPly;
-  if(maxPly !== null) existing.maxPly = maxPly;
-  if(minGh  !== null) existing.minGh  = minGh;
-  if(maxGh  !== null) existing.maxGh  = maxGh;
-
-  mmQueue.set(id, existing);
-  toast('Queued', 'Min/Max update queued.');
-  renderQueues();
-}
-
-function queueWeight(){
-  if(!currentMatch){ toast('Scan first', 'No active item.'); return; }
-  const id = (currentMatch[COL_VARIANT_ID] || '').trim();
-  if(!id){ toast('Missing Variant ID', 'This item has no Variant ID in the CSV.'); return; }
-
-  const w = document.getElementById('inWeight').value.trim();
-  if(!w){
-    toast('Nothing queued', 'Enter a weight value.');
-    return;
-  }
-
-  wQueue.set(id, w);
-  toast('Queued', 'Weight update queued.');
-  renderQueues();
-}
-
-/** ✅ PATCHED: allow blank bin values */
-function queueBin(){
-  if(!currentMatch){ toast('Scan first', 'No active item.'); return; }
-  const id = (currentMatch[COL_VARIANT_ID] || '').trim();
-  if(!id){ toast('Missing Variant ID', 'This item has no Variant ID in the CSV.'); return; }
-
-  // Allow blank bin (blank = clear bin in Shopify import)
-  const bin = document.getElementById('inBin').value.trim();
-
-  bQueue.set(id, bin);
-  toast('Queued', bin === '' ? 'Bin update queued (blank allowed).' : 'Bin update queued.');
-  renderQueues();
-}
-
-// boot
+/** boot */
 loadCSV();
 renderQueues();
 </script>
