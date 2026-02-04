@@ -265,7 +265,7 @@
     return new Date().toLocaleDateString('en-CA');
   }
 
-  // ASCII-only title for the first CSV line (prevents Excel weird characters)
+  // ASCII-only lane for CSV title/header (prevents weird Excel characters)
   function laneLabelAscii(from, to){
     const fromLabel = locLabel(from);
     const toLabel = (to === 'both') ? 'Both' : locLabel(to);
@@ -419,6 +419,7 @@
         const needGH  = needToMaxIfTriggered(ghOn, ghMin, ghMax);
         if(needPLY <= 0 && needGH <= 0) continue;
 
+        // Allocate source availability across both destinations (PLY first, then GH).
         plyPick = Math.min(needPLY, sourceAvail);
         const remaining = Math.max(sourceAvail - plyPick, 0);
         ghPick = Math.min(needGH, remaining);
@@ -547,7 +548,7 @@
     const from = document.getElementById('fromLoc').value;
     const to = document.getElementById('toLoc').value;
 
-    // ASCII-only first line (fixes weird characters in Excel)
+    // ASCII-only title (fixes weird Excel characters)
     const titleLane = laneLabelAscii(from, to);
     const pickTitle = `${titleLane} Pick - ${todayISO()}`;
 
@@ -556,37 +557,50 @@
       return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
     };
 
+    // Build columns dynamically:
+    // - Always: barcode, title, option1, wh_bin, WH
+    // - Plymouth pick: add PLY only
+    // - GH pick: add GH only
+    // - Both pick: add PLY + GH
+    const cols = ['barcode','title','option1','wh_bin','WH'];
+    if (to === 'plymouth') cols.push('PLY');
+    else if (to === 'green') cols.push('GH');
+    else cols.push('PLY','GH'); // both
+
     const out = [];
 
     // Title line (single-cell row), then a blank spacer row
     out.push([pickTitle]);
     out.push(['']);
 
-    // CSV headers:
-    // - Removed: sku, option2
-    // - Renamed last three: WH, PLY, GH
-    out.push([
-      'barcode','title','option1','wh_bin',
-      'WH','PLY','GH'
-    ]);
+    // Header row that includes the pick title in the header "section" too.
+    // This adds an extra left-most column header containing the title, with blank values on each data row.
+    // (Keeps the pick title visible alongside the column headers when printing.)
+    out.push([pickTitle, ...cols]);
 
     for(const p of lastPick){
       // preserve leading zeros in Excel
       const barcode = p.barcode ? `="${p.barcode.replace(/"/g,'""')}"` : '';
-      out.push([
+
+      const base = [
+        '',                 // matches the left-most header cell containing pickTitle
         barcode,
         p.title,
         p.opt1,
         p.whbin,
-        p.whAvail,
-        p.plyPick,
-        p.ghPick
-      ]);
+        p.whAvail
+      ];
+
+      if (to === 'plymouth') base.push(p.plyPick);
+      else if (to === 'green') base.push(p.ghPick);
+      else base.push(p.plyPick, p.ghPick);
+
+      out.push(base);
     }
 
     const csv = out.map(r => r.map(esc).join(',')).join('\n');
 
-    // Add UTF-8 BOM for maximum Excel compatibility
+    // UTF-8 BOM for maximum Excel compatibility
     const blob = new Blob(["\uFEFF" + csv], {type:'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
