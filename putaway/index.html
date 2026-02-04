@@ -19,6 +19,27 @@
   }
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto;background:var(--bg);margin:0;padding:18px;color:var(--text)}
   .wrap{max-width:1100px;margin:0 auto}
+
+  /* TOP NAV */
+  .topnav{
+    display:flex; gap:10px; flex-wrap:wrap;
+    position:sticky; top:0; z-index:50;
+    background:var(--bg);
+    padding:10px 0;
+    margin:-10px 0 14px;
+  }
+  .topnav a{
+    display:inline-block;
+    text-decoration:none;
+    font-weight:900;
+    color:var(--text);
+    padding:10px 12px;
+    border:1px solid var(--line);
+    border-radius:12px;
+    background:#fff;
+  }
+  .topnav a:hover{background:#f1f5f9}
+
   .card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:var(--shadow);border:1px solid rgba(226,232,240,.7)}
   h1{margin:0 0 6px;font-size:30px}
   .sub{margin:0 0 12px;color:var(--muted);font-size:13px;line-height:1.35}
@@ -57,6 +78,13 @@
 
 <body>
 <div class="wrap">
+
+  <nav class="topnav">
+    <a href="../">🏠 Home</a>
+    <a href="../bin/">📍 Bin Lookup</a>
+    <a href="../transfers/">📦 Transfer Picks</a>
+    <a href="../putaway/">🧾 Scan / Putaway</a>
+  </nav>
 
   <div class="card">
     <h1>Scan / Putaway</h1>
@@ -161,20 +189,13 @@
           <div class="sub">Scans log here automatically. Download CSV sorted by bin.</div>
         </div>
         <div class="row" style="gap:8px">
-          <button class="btn" type="button" onclick="undoLastScan()">Undo last scan</button>
-          <button class="btn btnDanger" type="button" onclick="clearPutaway()">Clear log</button>
+          <button class="btn" type="button" onclick="clearLog()">Clear Log</button>
         </div>
       </div>
 
       <table>
         <thead>
-          <tr>
-            <th style="width:90px">Time</th>
-            <th style="width:150px">Bin</th>
-            <th style="width:160px">Barcode</th>
-            <th>Title</th>
-            <th style="width:90px"></th>
-          </tr>
+          <tr><th>Time</th><th>Bin</th><th>Barcode</th><th>Title</th></tr>
         </thead>
         <tbody id="log"></tbody>
       </table>
@@ -229,15 +250,16 @@ const bQueue  = new Map();   // id -> bin string (can be blank)
 
 // Putaway log
 const putawayList = [];
-const scanHistory = [];
 
 /** =========================
  * HELPERS
  * ========================= */
 function esc(s){
   return String(s ?? '')
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
 }
 
 function toast(title, msg){
@@ -364,14 +386,32 @@ function renderQueues(){
 }
 
 /** =========================
- * AUTO BIN QUEUE (NEW)
+ * AUTO BIN QUEUE
  * ========================= */
-function autoQueueBinCurrent(){
-  if(!currentMatch) return;
+function autoQueueBinCurrent(source){
+  if(!currentMatch) return false;
+
   const id = String(currentMatch[COL_VARIANT_ID] || '').trim();
-  if(!id) return;
+  if(!id){
+    if(source === 'scan'){
+      toast('Not queued', 'This item has no Variant ID, so it cannot be included in the bin update CSV.');
+    }
+    return false;
+  }
+
   const binVal = String(document.getElementById('inBin').value || '').trim(); // blank allowed
   bQueue.set(id, binVal);
+
+  if(source === 'scan'){
+    toast(
+      'Added to bin queue',
+      binVal
+        ? `Queued bin: <span class="mono">${esc(binVal)}</span>`
+        : 'Queued blank bin (will clear WH bin in Shopify).'
+    );
+  }
+
+  return true;
 }
 
 /** =========================
@@ -382,38 +422,41 @@ async function loadCSV(){
   setMeta('');
   try{
     const url = CSV_URL + '?v=' + Date.now();
-    const res = await fetch(url, {cache:'no-store'});
+    const res = await fetch(url, { cache: 'no-store' });
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const lastModified = res.headers.get('last-modified');
     const etag = res.headers.get('etag');
-    const text = await res.text();
 
+    const text = await res.text();
     rows = parseCSV(text);
 
     setStatus(true, `Parsed ${rows.length} rows`);
     setMeta(`
-      <div><strong>CSV Last Updated (server):</strong> ${lastModified ? fmtDate(lastModified) : '<span style="color:#7f1d1d">Unknown</span>'}</div>
-      <div><strong>Loaded at:</strong> ${new Date().toLocaleString()}</div>
+      <div><strong>CSV Last Updated (server):</strong> ${lastModified ? fmtDate(lastModified) : '<span style="color:#7f1d1d;">Unknown</span>'}</div>
+      <div><strong>Loaded at (this device):</strong> ${new Date().toLocaleString()}</div>
       ${etag ? `<div><strong>ETag:</strong> <span class="mono">${esc(etag)}</span></div>` : ''}
     `);
-    renderQueues();
+
   }catch(e){
-    setStatus(false, `Couldn’t load ${esc(CSV_URL)} — ${esc(e.message)}`);
-    setMeta(`<div style="color:#7f1d1d;"><strong>Tip:</strong> Confirm <span class="mono">${esc(CSV_URL)}</span> exists in the repo.</div>`);
+    setStatus(false, `Couldn’t load <code>${esc(CSV_URL)}</code> — ${esc(e.message)}`);
+    setMeta(`<div style="color:#7f1d1d;"><strong>Tip:</strong> Open <code>${esc(CSV_URL)}</code> in a browser tab to confirm it exists.</div>`);
     rows = [];
-    renderQueues();
   }
+  renderQueues();
 }
 
 /** =========================
  * MATCH + CALCS
  * ========================= */
 function findMatch(q){
-  return rows.find(r =>
+  const matches = rows.filter(r =>
     (r[COL_BARCODE] && String(r[COL_BARCODE]).trim() === q) ||
     (r[COL_SKU] && String(r[COL_SKU]).trim() === q)
   );
+  if(!matches.length) return null;
+  const withId = matches.find(r => String(r[COL_VARIANT_ID] || '').trim() !== '');
+  return withId || matches[0];
 }
 
 function neededToMax(onHand, maxVal){
@@ -440,66 +483,27 @@ function isDuplicateScan(m){
 /** =========================
  * PUTAWAY LOG
  * ========================= */
-function renderLog(){
-  const tbody = document.getElementById('log');
-  tbody.innerHTML = '';
-  for(const item of putawayList){
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${esc(item.time)}</td>
-      <td class="mono">${esc(item.bin || '')}</td>
-      <td class="mono">${esc(item.barcode || '')}</td>
-      <td>${esc(item.title || '')}</td>
-      <td><button class="btn" type="button" onclick="deleteScan(${item._id})">Delete</button></td>
-    `;
-    tbody.appendChild(tr);
-  }
-}
-
 function addPutaway(m){
-  const item = {
-    _id: Date.now() + Math.floor(Math.random()*1000),
-    time: new Date().toLocaleTimeString(),
+  const tr = document.createElement('tr');
+  tr.innerHTML =
+    `<td>${esc(new Date().toLocaleTimeString())}</td>
+     <td class="mono">${esc(m[COL_WH_BIN]||'')}</td>
+     <td class="mono">${esc(m[COL_BARCODE]||'')}</td>
+     <td>${esc(m[COL_TITLE]||'')}</td>`;
+  document.getElementById('log').prepend(tr);
+
+  putawayList.unshift({
     bin: m[COL_WH_BIN] || '',
     barcode: m[COL_BARCODE] || '',
     title: m[COL_TITLE] || ''
-  };
-  putawayList.unshift(item);
-  scanHistory.push(item._id);
-  renderLog();
+  });
   renderKPIs();
 }
 
-function deleteScan(id){
-  const idx = putawayList.findIndex(x => x._id === id);
-  if(idx >= 0){
-    putawayList.splice(idx, 1);
-    const h = scanHistory.lastIndexOf(id);
-    if(h >= 0) scanHistory.splice(h,1);
-    renderLog();
-    renderKPIs();
-  }
-}
-
-function undoLastScan(){
-  if(!scanHistory.length){
-    toast('Nothing to undo', 'No scans in history.');
-    return;
-  }
-  const lastId = scanHistory.pop();
-  const idx = putawayList.findIndex(x => x._id === lastId);
-  if(idx >= 0) putawayList.splice(idx, 1);
-  renderLog();
-  renderKPIs();
-  toast('Undone', 'Last scan removed from putaway log.');
-}
-
-function clearPutaway(){
+function clearLog(){
+  document.getElementById('log').innerHTML='';
   putawayList.length = 0;
-  scanHistory.length = 0;
-  renderLog();
   renderKPIs();
-  toast('Cleared', 'Putaway log cleared.');
 }
 
 /** =========================
@@ -518,12 +522,12 @@ function showEditFor(match){
 
   document.getElementById('editCard').style.display = 'block';
 
-  // ✅ NEW: auto-queue bin on scan + keep queue updated as you type (blank allowed)
-  autoQueueBinCurrent();
+  // auto-queue bin on scan + keep queue updated as you type (blank allowed)
+  autoQueueBinCurrent('scan');
   if(!binAutoHooked){
     binAutoHooked = true;
     document.getElementById('inBin').addEventListener('input', () => {
-      autoQueueBinCurrent();
+      autoQueueBinCurrent('edit');
       renderQueues();
     });
   }
@@ -586,7 +590,7 @@ function queueWeight(){
   renderQueues();
 }
 
-// Still available manually, but blank allowed now
+// Still available manually, but blank allowed
 function queueBin(){
   if(!currentMatch){ toast('Scan first', 'No active item.'); return; }
   const id = String(currentMatch[COL_VARIANT_ID] || '').trim();
@@ -658,7 +662,7 @@ function downloadWeightCSV(){
   downloadText(`updates_weight_${new Date().toISOString().slice(0,10)}.csv`, buildCSV(headers, rows2d));
 }
 
-// ✅ Bin updates: ONLY Variant ID + WH Bin (blank allowed)
+// Bin updates: ONLY Variant ID + WH Bin (blank allowed)
 function downloadBinCSV(){
   if(bQueue.size === 0){
     toast('No updates queued', 'Scan an item (auto-queues bin), then download.');
@@ -726,8 +730,10 @@ function doScan(q){
     <div style="margin-top:2px;font-size:18px;font-weight:1000">${esc(m[COL_TITLE] || '')}</div>
     <div class="sub" style="margin:6px 0 0">
       <strong>Barcode:</strong> <span class="mono">${esc(m[COL_BARCODE] || '')}</span>
-      &nbsp; | &nbsp; <strong>SKU:</strong> <span class="mono">${esc(m[COL_SKU] || '')}</span>
-      &nbsp; | &nbsp; <strong>Variant ID:</strong> <span class="mono">${esc(m[COL_VARIANT_ID] || '')}</span>
+      &nbsp; | &nbsp;
+      <strong>SKU:</strong> <span class="mono">${esc(m[COL_SKU] || '')}</span>
+      &nbsp; | &nbsp;
+      <strong>Variant ID:</strong> <span class="mono">${esc(m[COL_VARIANT_ID] || '')}</span>
     </div>
   `;
 
