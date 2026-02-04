@@ -260,6 +260,21 @@
     return Number.isFinite(x) ? x : 0;
   }
 
+  function todayISO(){
+    // YYYY-MM-DD (uses device locale/time)
+    return new Date().toLocaleDateString('en-CA');
+  }
+
+  // Makes a safe, readable filename from the pick title
+  function safeFilename(name){
+    return String(name || 'pick')
+      .replace(/→/g, ' to ')
+      .replace(/[\/\\?%*:|"<>]/g, '-')  // illegal filename chars
+      .replace(/\s+/g, ' ')            // normalize spaces
+      .trim()
+      .replace(/ /g, '_');             // spaces → underscores
+  }
+
   async function loadCSV(){
     setStatus(false, 'Loading…');
     setMeta('');
@@ -314,10 +329,8 @@
   }
 
   // Expected format: BB01-01-01  (Bay)-(Shelf)-(Bin)
-  // Returns { bay, shelf, bin, ok, sortKey }
   function parseWhBin(raw){
     const s = String(raw || '').trim().toUpperCase();
-    // strict-ish match: letters+digits for bay, then -NN-NN
     const m = s.match(/^([A-Z]{2}\d{2})-(\d{2})-(\d{2})$/);
     if (m){
       const bay = m[1];
@@ -325,12 +338,10 @@
       const bin = Number(m[3]);
       return { bay, shelf, bin, ok:true, sortKey:`${bay}-${String(shelf).padStart(2,'0')}-${String(bin).padStart(2,'0')}` };
     }
-    // If it’s blank or not in the final format yet, push it to the bottom.
     return { bay:'ZZZ', shelf:999, bin:999, ok:false, sortKey:'ZZZ-99-99' };
   }
 
   function compareBinWalk(a, b){
-    // Sort by parsed bay/shelf/bin then title then barcode
     const pa = a._binParsed, pb = b._binParsed;
     if (pa.bay !== pb.bay) return pa.bay < pb.bay ? -1 : 1;
     if (pa.shelf !== pb.shelf) return pa.shelf - pb.shelf;
@@ -399,10 +410,8 @@
       if(to === 'both'){
         const needPLY = needToMaxIfTriggered(plyOn, plyMin, plyMax);
         const needGH  = needToMaxIfTriggered(ghOn, ghMin, ghMax);
-
         if(needPLY <= 0 && needGH <= 0) continue;
 
-        // Allocate source availability across both destinations (PLY first, then GH).
         plyPick = Math.min(needPLY, sourceAvail);
         const remaining = Math.max(sourceAvail - plyPick, 0);
         ghPick = Math.min(needGH, remaining);
@@ -454,12 +463,9 @@
       });
     }
 
-    // Sort
     if (pickOrder === 'binwalk') picks.sort(compareBinWalk);
     else if (pickOrder === 'title') picks.sort(compareTitle);
-    // default = keep insertion order
 
-    // Render (with optional bay headers)
     resultsEl.innerHTML = '';
     let currentBay = null;
     const useHeaders = (pickOrder === 'binwalk') && groupHeaders;
@@ -530,8 +536,15 @@
       setStatus(false, 'No pick built yet');
       return;
     }
+
     const from = document.getElementById('fromLoc').value;
     const to = document.getElementById('toLoc').value;
+
+    const lane = (to === 'both')
+      ? `${locLabel(from)} → Both`
+      : `${locLabel(from)} → ${locLabel(to)}`;
+
+    const pickTitle = `${lane} Pick — ${todayISO()}`;
 
     const esc = (v) => {
       const s = v == null ? '' : String(v);
@@ -539,10 +552,15 @@
     };
 
     const out = [];
+
+    // Title line (single-cell row), then a blank spacer row
+    out.push([pickTitle]);
+    out.push(['']);
+
+    // CSV headers (NO from/to columns)
     out.push([
       'barcode','sku','title','option1','option2','wh_bin',
-      'wh_available','pick_plymouth','pick_greenharbor',
-      'from','to'
+      'wh_available','pick_plymouth','pick_greenharbor'
     ]);
 
     for(const p of lastPick){
@@ -557,9 +575,7 @@
         p.whbin,
         p.whAvail,
         p.plyPick,
-        p.ghPick,
-        locLabel(from),
-        (to === 'both') ? 'Both' : locLabel(to)
+        p.ghPick
       ]);
     }
 
@@ -568,7 +584,10 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `transfer_pick_${from}_to_${to}.csv`;
+
+    // ✅ Human-readable filename that matches the title line
+    a.download = `${safeFilename(pickTitle)}.csv`;
+
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -580,11 +599,9 @@
   document.getElementById('buildBtn').addEventListener('click', buildPick);
   document.getElementById('downloadBtn').addEventListener('click', downloadPick);
 
-  // If user changes sort/grouping, rebuild instantly (nice workflow)
   document.getElementById('pickOrder').addEventListener('change', () => { if (lastPick.length) buildPick(); });
   document.getElementById('groupHeaders').addEventListener('change', () => { if (lastPick.length) buildPick(); });
 
-  // boot
   loadCSV();
 </script>
 
