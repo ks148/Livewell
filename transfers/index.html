@@ -265,10 +265,17 @@
     return new Date().toLocaleDateString('en-CA');
   }
 
+  // ASCII-only title for the first CSV line (prevents Excel weird characters)
+  function laneLabelAscii(from, to){
+    const fromLabel = locLabel(from);
+    const toLabel = (to === 'both') ? 'Both' : locLabel(to);
+    return `${fromLabel} -> ${toLabel}`;
+  }
+
   // Makes a safe, readable filename from the pick title
   function safeFilename(name){
     return String(name || 'pick')
-      .replace(/→/g, ' to ')
+      .replace(/[^\x20-\x7E]/g, '')     // strip non-ASCII
       .replace(/[\/\\?%*:|"<>]/g, '-')  // illegal filename chars
       .replace(/\s+/g, ' ')            // normalize spaces
       .trim()
@@ -540,11 +547,9 @@
     const from = document.getElementById('fromLoc').value;
     const to = document.getElementById('toLoc').value;
 
-    const lane = (to === 'both')
-      ? `${locLabel(from)} → Both`
-      : `${locLabel(from)} → ${locLabel(to)}`;
-
-    const pickTitle = `${lane} Pick — ${todayISO()}`;
+    // ASCII-only first line (fixes weird characters in Excel)
+    const titleLane = laneLabelAscii(from, to);
+    const pickTitle = `${titleLane} Pick - ${todayISO()}`;
 
     const esc = (v) => {
       const s = v == null ? '' : String(v);
@@ -557,10 +562,12 @@
     out.push([pickTitle]);
     out.push(['']);
 
-    // CSV headers (NO from/to columns)
+    // CSV headers:
+    // - Removed: sku, option2
+    // - Renamed last three: WH, PLY, GH
     out.push([
-      'barcode','sku','title','option1','option2','wh_bin',
-      'wh_available','pick_plymouth','pick_greenharbor'
+      'barcode','title','option1','wh_bin',
+      'WH','PLY','GH'
     ]);
 
     for(const p of lastPick){
@@ -568,10 +575,8 @@
       const barcode = p.barcode ? `="${p.barcode.replace(/"/g,'""')}"` : '';
       out.push([
         barcode,
-        p.sku,
         p.title,
         p.opt1,
-        p.opt2,
         p.whbin,
         p.whAvail,
         p.plyPick,
@@ -580,12 +585,14 @@
     }
 
     const csv = out.map(r => r.map(esc).join(',')).join('\n');
-    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+
+    // Add UTF-8 BOM for maximum Excel compatibility
+    const blob = new Blob(["\uFEFF" + csv], {type:'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
 
-    // ✅ Human-readable filename that matches the title line
+    // Human-readable filename that matches the title line
     a.download = `${safeFilename(pickTitle)}.csv`;
 
     document.body.appendChild(a);
