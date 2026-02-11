@@ -257,7 +257,23 @@ function buildPick(){
 
   document.getElementById('downloadBtn').disabled = !lastPick.length;
 }
+function pad2(x){ return String(x).padStart(2,'0'); }
 
+function makePickFilename(to){
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = pad2(d.getMonth()+1);
+  const dd = pad2(d.getDate());
+  const hh = pad2(d.getHours());
+  const min = pad2(d.getMinutes());
+
+  const dest =
+    to === 'plymouth' ? 'PLY' :
+    to === 'green' ? 'GH' :
+    'BOTH';
+
+  return `PICKS_${dest}_${yyyy}-${mm}-${dd}_${hh}${min}.csv`;
+}
 function downloadCSV(){
   if(!lastPick.length) return;
 
@@ -285,7 +301,7 @@ function downloadCSV(){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'pick.csv';
+  a.download = makePickFilename(to);
   a.click();
   URL.revokeObjectURL(url);
 }
