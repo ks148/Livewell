@@ -64,12 +64,13 @@ th,td{padding:8px;border-bottom:1px solid #e5e7eb;text-align:left}
 th{background:#f1f5f9}
 .mono{font-family:monospace}
 .small{font-size:12px;color:#64748b;font-weight:700}
+.warn{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;padding:10px 12px;border-radius:12px;font-weight:700}
 </style>
 </head>
 
 <body>
 
-<!-- NAV -->
+<!-- NAV (paths assume your folder is literally "Picks") -->
 <div class="topnav">
   <div class="row">
     <a href="../index.html"><button>🏠 Home</button></a>
@@ -108,6 +109,8 @@ th{background:#f1f5f9}
     <button class="primary" onclick="buildPick()">Build Pick</button>
     <button onclick="downloadCSV()" id="downloadBtn" disabled>Download CSV</button>
   </div>
+
+  <div id="loadMsg" style="margin-top:12px;display:none" class="warn"></div>
 </div>
 
 <div class="card">
@@ -120,8 +123,10 @@ th{background:#f1f5f9}
 </div>
 
 <script>
+/** DATA SOURCE **/
 const CSV_URL = '../pickle-data.csv';
 
+/** COLUMN NAMES (must match your Shopify export headers) **/
 const COL_BARCODE = 'Variant Barcode';
 const COL_TITLE = 'Title';
 const COL_WH_BIN = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
@@ -139,9 +144,16 @@ const COL_GH_MAX = 'Variant Metafield: custom.maxgh [number_integer]';
 let rows = [];
 let lastPick = [];
 
-/* INTEGER SAFE PARSER (NO DECIMALS) */
+/** STRICT INTEGER PARSER:
+ *  - blank => 0
+ *  - non-numeric => 0
+ *  - decimals => floored
+ */
 function n(v){
-  return Math.floor(Number(v) || 0);
+  const s = String(v ?? '').trim();
+  if(!s) return 0;
+  const num = Number(s);
+  return Number.isFinite(num) ? Math.floor(num) : 0;
 }
 
 function need(on,min,max){
@@ -149,7 +161,7 @@ function need(on,min,max){
   return Math.max(max - on, 0);
 }
 
-/* TABLE HEAD: always include WH Available, then only the needed TO columns */
+/** Renders table headers based on TO selection */
 function renderTableHead(to){
   let h = `
     <th>Barcode</th>
@@ -169,20 +181,95 @@ function renderTableHead(to){
   document.getElementById('tableHead').innerHTML = h;
 }
 
-async function loadCSV(){
-  const res = await fetch(CSV_URL + '?v=' + Date.now());
-  const text = await res.text();
-  const lines = text.split(/\r?\n/).filter(l => l.trim());
-  const headers = lines[0].split(',');
+/** CSV PARSER (handles quotes + commas correctly) */
+function parseCSV(text){
+  // Normalize line endings
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
-  rows = lines.slice(1).map(l=>{
-    const parts = l.split(',');
-    let obj = {};
-    headers.forEach((h,i)=> obj[h.trim()] = parts[i]?.trim());
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+
+  for(let i=0;i<text.length;i++){
+    const c = text[i];
+
+    if(inQuotes){
+      if(c === '"'){
+        // double quote inside quoted field => literal quote
+        if(text[i+1] === '"'){
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += c;
+      }
+    } else {
+      if(c === '"'){
+        inQuotes = true;
+      } else if(c === ','){
+        row.push(field);
+        field = '';
+      } else if(c === '\n'){
+        row.push(field);
+        field = '';
+        // Ignore totally empty trailing lines
+        if(row.length > 1 || (row.length === 1 && row[0].trim() !== '')){
+          rows.push(row);
+        }
+        row = [];
+      } else {
+        field += c;
+      }
+    }
+  }
+
+  // last field
+  row.push(field);
+  if(row.length > 1 || (row.length === 1 && row[0].trim() !== '')){
+    rows.push(row);
+  }
+
+  if(!rows.length) return { headers: [], records: [] };
+
+  const headers = rows[0].map(h => String(h ?? '').trim());
+  const records = rows.slice(1).map(r => {
+    const obj = {};
+    headers.forEach((h, idx) => {
+      obj[h] = (r[idx] ?? '').trim();
+    });
     return obj;
   });
+
+  return { headers, records };
 }
 
+/** Load CSV */
+async function loadCSV(){
+  const msg = document.getElementById('loadMsg');
+  msg.style.display = 'none';
+  msg.textContent = '';
+
+  const res = await fetch(CSV_URL + '?v=' + Date.now(), { cache: 'no-store' });
+  if(!res.ok) throw new Error('Failed to load pickle-data.csv (HTTP ' + res.status + ')');
+
+  const text = await res.text();
+  const parsed = parseCSV(text);
+
+  rows = parsed.records;
+
+  // Quick sanity: if we can't find key columns, warn loudly
+  const required = [COL_BARCODE, COL_TITLE, COL_WH_AV, COL_CONT_AV, COL_PLY_ON, COL_GH_ON];
+  const missing = required.filter(col => !(col in (rows[0] || {})));
+  if(missing.length){
+    msg.style.display = 'block';
+    msg.textContent = 'Warning: pickle-data.csv is missing expected columns. Picks may be wrong. Missing: ' + missing.join(' | ');
+  }
+}
+
+/** Build pick list */
 function buildPick(){
   const from = document.getElementById('fromLoc').value;
   const to = document.getElementById('toLoc').value;
@@ -195,23 +282,28 @@ function buildPick(){
   lastPick = [];
 
   rows.forEach(r=>{
+    // Skip totally blank SKU rows
+    const barcode = String(r[COL_BARCODE] || '').trim();
+    const title = String(r[COL_TITLE] || '').trim();
+    if(!barcode && !title) return;
+
     const wh = n(r[COL_WH_AV]);
     const cont = n(r[COL_CONT_AV]);
 
-    // "WH Available" for output:
-    // - If FROM=Warehouse with fallback, it becomes WH if WH>0 else Container if WH=0 and Container>0
-    // - Otherwise it is whatever FROM location you selected
+    // WH Available: treated as integer; blanks become 0 automatically by n()
     let whAvailable = 0;
 
     if(from === 'warehouse' && fallback){
       if(wh > 0) whAvailable = wh;
       else if(cont > 0) whAvailable = cont;
-      else return;
+      else return; // nothing to pick from
     } else {
-      whAvailable = (from==='warehouse')? wh :
-                    (from==='container')? cont :
-                    (from==='green')? n(r[COL_GH_ON]) :
-                    n(r[COL_PLY_ON]);
+      whAvailable =
+        (from==='warehouse') ? wh :
+        (from==='container') ? cont :
+        (from==='green') ? n(r[COL_GH_ON]) :
+        n(r[COL_PLY_ON]);
+
       if(whAvailable <= 0) return;
     }
 
@@ -234,22 +326,22 @@ function buildPick(){
 
     const tr = document.createElement('tr');
 
-    let row = `
-      <td class="mono">${r[COL_BARCODE]||''}</td>
-      <td>${r[COL_TITLE]||''}</td>
-      <td>${r[COL_WH_BIN]||''}</td>
+    let rowHTML = `
+      <td class="mono">${barcode}</td>
+      <td>${title}</td>
+      <td>${(r[COL_WH_BIN]||'')}</td>
       <td>${whAvailable}</td>
     `;
 
     if(to === 'plymouth'){
-      row += `<td>${plyPick}</td>`;
+      rowHTML += `<td>${plyPick}</td>`;
     } else if(to === 'green'){
-      row += `<td>${ghPick}</td>`;
+      rowHTML += `<td>${ghPick}</td>`;
     } else {
-      row += `<td>${plyPick}</td><td>${ghPick}</td>`;
+      rowHTML += `<td>${plyPick}</td><td>${ghPick}</td>`;
     }
 
-    tr.innerHTML = row;
+    tr.innerHTML = rowHTML;
     tbody.appendChild(tr);
 
     lastPick.push({ r, whAvailable, plyPick, ghPick, to });
@@ -257,6 +349,8 @@ function buildPick(){
 
   document.getElementById('downloadBtn').disabled = !lastPick.length;
 }
+
+/** Workflow filename */
 function pad2(x){ return String(x).padStart(2,'0'); }
 
 function makePickFilename(to){
@@ -274,12 +368,13 @@ function makePickFilename(to){
 
   return `PICKS_${dest}_${yyyy}-${mm}-${dd}_${hh}${min}.csv`;
 }
+
+/** Download CSV */
 function downloadCSV(){
   if(!lastPick.length) return;
 
   const to = lastPick[0].to;
 
-  // CSV header matches visible columns
   let header = 'Barcode,Title,WH Bin,WH Available';
   if(to === 'plymouth') header += ',PLY\n';
   else if(to === 'green') header += ',GH\n';
@@ -288,7 +383,14 @@ function downloadCSV(){
   let csv = header;
 
   lastPick.forEach(p=>{
-    let line = `="${p.r[COL_BARCODE]||''}",${p.r[COL_TITLE]||''},${p.r[COL_WH_BIN]||''},${p.whAvailable}`;
+    const barcode = String(p.r[COL_BARCODE] || '').trim();
+    const title = String(p.r[COL_TITLE] || '').trim();
+    const bin = String(p.r[COL_WH_BIN] || '').trim();
+
+    // Quote title safely (titles can contain commas)
+    const safeTitle = `"${title.replace(/"/g,'""')}"`;
+
+    let line = `="${barcode}",${safeTitle},${bin},${p.whAvailable}`;
 
     if(p.to === 'plymouth') line += `,${p.plyPick}`;
     else if(p.to === 'green') line += `,${p.ghPick}`;
@@ -306,9 +408,13 @@ function downloadCSV(){
   URL.revokeObjectURL(url);
 }
 
-loadCSV();
+// init
+loadCSV().catch(err=>{
+  const msg = document.getElementById('loadMsg');
+  msg.style.display = 'block';
+  msg.textContent = (err && err.message) ? err.message : 'Failed to load pickle-data.csv';
+});
 </script>
 
 </body>
 </html>
-
