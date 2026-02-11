@@ -8,6 +8,28 @@
 
 <style>
 body{font-family:system-ui;margin:20px;background:#f4f6f9}
+
+/* TOP NAV */
+.topnav{
+  position:sticky; top:0; z-index:50;
+  background:#ffffffcc;
+  backdrop-filter:saturate(180%) blur(10px);
+  border:1px solid #e5e7eb;
+  border-radius:14px;
+  padding:10px;
+  margin-bottom:14px;
+  box-shadow:0 2px 10px rgba(0,0,0,.06);
+}
+.topnav .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.topnav .spacer{flex:1}
+.topnav a{ text-decoration:none; }
+.topnav button{
+  padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;
+  font-weight:800;cursor:pointer;background:#fff
+}
+.topnav button:hover{filter:brightness(.98)}
+.topnav .active{background:#111827;color:#fff;border-color:#111827}
+
 .card{background:#fff;padding:16px;border-radius:14px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
 .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
 button{padding:10px 14px;border-radius:10px;border:1px solid #ccc;font-weight:700;cursor:pointer}
@@ -17,59 +39,110 @@ table{width:100%;border-collapse:collapse}
 th,td{padding:8px;border-bottom:1px solid #eee;text-align:left}
 th{background:#f1f5f9}
 .mono{font-family:monospace}
+.small{font-size:12px;color:#64748b;font-weight:700}
 </style>
 </head>
 
 <body>
 
+<!-- TOP NAV -->
+<div class="topnav">
+  <div class="row" id="topNavRow">
+    <!-- buttons injected by JS so you only edit links in one place -->
+    <div class="spacer"></div>
+    <div class="small">Ops Tools</div>
+  </div>
+</div>
+
 <h1>Picks</h1>
 
 <div class="card">
-<div class="row">
-<label>Pick FROM:</label>
-<select id="fromLoc">
-<option value="warehouse" selected>Warehouse-66</option>
-<option value="container">Container - PLY</option>
-<option value="green">Green Harbor</option>
-<option value="plymouth">Plymouth</option>
-</select>
+  <div class="row">
+    <label>Pick FROM:</label>
+    <select id="fromLoc">
+      <option value="warehouse" selected>Warehouse-66</option>
+      <option value="container">Container - PLY</option>
+      <option value="green">Green Harbor</option>
+      <option value="plymouth">Plymouth</option>
+    </select>
 
-<label>
-<input type="checkbox" id="fallback" checked>
-WH → Container fallback
-</label>
+    <label>
+      <input type="checkbox" id="fallback" checked>
+      WH → Container fallback
+    </label>
 
-<label>Pick TO:</label>
-<select id="toLoc">
-<option value="plymouth">Plymouth</option>
-<option value="green">Green Harbor</option>
-<option value="both">Both</option>
-</select>
+    <label>Pick TO:</label>
+    <select id="toLoc">
+      <option value="plymouth">Plymouth</option>
+      <option value="green">Green Harbor</option>
+      <option value="both">Both</option>
+    </select>
 
-<button class="primary" onclick="buildPick()">Build Pick</button>
-<button onclick="downloadCSV()" id="downloadBtn" disabled>Download CSV</button>
-</div>
+    <button class="primary" onclick="buildPick()">Build Pick</button>
+    <button onclick="downloadCSV()" id="downloadBtn" disabled>Download CSV</button>
+  </div>
 </div>
 
 <div class="card">
-<table>
-<thead>
-<tr>
-<th>Barcode</th>
-<th>Title</th>
-<th>WH Bin</th>
-<th>FROM (actual)</th>
-<th>Source Avail</th>
-<th>PLY</th>
-<th>GH</th>
-</tr>
-</thead>
-<tbody id="results"></tbody>
-</table>
+  <table>
+    <thead>
+      <tr>
+        <th>Barcode</th>
+        <th>Title</th>
+        <th>WH Bin</th>
+        <th>FROM (actual)</th>
+        <th>Source Avail</th>
+        <th>PLY</th>
+        <th>GH</th>
+      </tr>
+    </thead>
+    <tbody id="results"></tbody>
+  </table>
 </div>
 
 <script>
+// =====================
+// NAV CONFIG (EDIT THIS IF NEEDED)
+// Because CSV_URL is ../pickle-data.csv, this page is likely in a subfolder.
+// These links assume a structure like:
+//   /index.html (home)
+//   /picks/index.html (this page)
+//   /putaway/index.html, /scan-checker/index.html, etc.
+// =====================
+const NAV_LINKS = [
+  { label: "Home", href: "../index.html" },
+  { label: "Picks", href: "./index.html", active: true },
 
+  // Update these filenames/paths to match your repo:
+  { label: "Putaway", href: "../putaway/index.html" },
+  { label: "Scan Checker", href: "../scan-checker/index.html" },
+  { label: "Matcher", href: "../matcher/index.html" },
+  { label: "Bin Finder", href: "../bin-finder/index.html" }
+];
+
+(function renderTopNav(){
+  const row = document.getElementById("topNavRow");
+  if(!row) return;
+
+  // Insert buttons before the spacer
+  const spacer = row.querySelector(".spacer");
+  NAV_LINKS.forEach(link => {
+    const a = document.createElement("a");
+    a.href = link.href;
+
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = link.label;
+    if(link.active) b.classList.add("active");
+
+    a.appendChild(b);
+    row.insertBefore(a, spacer);
+  });
+})();
+
+// =====================
+// APP LOGIC
+// =====================
 const CSV_URL = '../pickle-data.csv';
 
 const COL_BARCODE = 'Variant Barcode';
@@ -90,126 +163,122 @@ let rows=[];
 let lastPick=[];
 
 function n(v){
-return Number(String(v||'').replace(/[^0-9.-]/g,''))||0;
+  return Number(String(v||'').replace(/[^0-9.-]/g,''))||0;
 }
 
 function need(on,min,max){
-if(!(on<min)) return 0;
-return Math.max(max-on,0);
+  if(!(on<min)) return 0;
+  return Math.max(max-on,0);
 }
 
 async function loadCSV(){
-const res=await fetch(CSV_URL+'?v='+Date.now());
-const text=await res.text();
-const lines=text.split(/\r?\n/).filter(l=>l.trim());
-const headers=lines[0].split(',');
-rows=lines.slice(1).map(l=>{
-const parts=l.split(',');
-let obj={};
-headers.forEach((h,i)=>obj[h.trim()]=parts[i]?.trim());
-return obj;
-});
+  const res=await fetch(CSV_URL+'?v='+Date.now());
+  const text=await res.text();
+  const lines=text.split(/\r?\n/).filter(l=>l.trim());
+  const headers=lines[0].split(',');
+  rows=lines.slice(1).map(l=>{
+    const parts=l.split(',');
+    let obj={};
+    headers.forEach((h,i)=>obj[h.trim()]=parts[i]?.trim());
+    return obj;
+  });
 }
 
 function buildPick(){
 
-const from=document.getElementById('fromLoc').value;
-const to=document.getElementById('toLoc').value;
-const fallback=document.getElementById('fallback').checked;
+  const from=document.getElementById('fromLoc').value;
+  const to=document.getElementById('toLoc').value;
+  const fallback=document.getElementById('fallback').checked;
 
-const tbody=document.getElementById('results');
-tbody.innerHTML='';
-lastPick=[];
+  const tbody=document.getElementById('results');
+  tbody.innerHTML='';
+  lastPick=[];
 
-rows.forEach(r=>{
+  rows.forEach(r=>{
 
-const wh=n(r[COL_WH_AV]);
-const cont=n(r[COL_CONT_AV]);
+    const wh=n(r[COL_WH_AV]);
+    const cont=n(r[COL_CONT_AV]);
 
-let sourceAvail=0;
-let actualFrom=from;
+    let sourceAvail=0;
+    let actualFrom=from;
 
-if(from==='warehouse' && fallback){
-if(wh>0){
-sourceAvail=wh;
-actualFrom='Warehouse-66';
-}else if(cont>0){
-sourceAvail=cont;
-actualFrom='Container - PLY';
-}else{
-return;
-}
-}else{
-sourceAvail=(from==='warehouse')?wh:
-(from==='container')?cont:
-(from==='green')?n(r[COL_GH_ON]):
-n(r[COL_PLY_ON]);
+    if(from==='warehouse' && fallback){
+      if(wh>0){
+        sourceAvail=wh;
+        actualFrom='Warehouse-66';
+      }else if(cont>0){
+        sourceAvail=cont;
+        actualFrom='Container - PLY';
+      }else{
+        return;
+      }
+    }else{
+      sourceAvail=(from==='warehouse')?wh:
+        (from==='container')?cont:
+        (from==='green')?n(r[COL_GH_ON]):
+        n(r[COL_PLY_ON]);
 
-if(sourceAvail<=0) return;
+      if(sourceAvail<=0) return;
 
-actualFrom = from==='warehouse'?'Warehouse-66':
-from==='container'?'Container - PLY':
-from==='green'?'Green Harbor':'Plymouth';
-}
+      actualFrom = from==='warehouse'?'Warehouse-66':
+        from==='container'?'Container - PLY':
+        from==='green'?'Green Harbor':'Plymouth';
+    }
 
-const plyNeed=need(n(r[COL_PLY_ON]),n(r[COL_PLY_MIN]),n(r[COL_PLY_MAX]));
-const ghNeed=need(n(r[COL_GH_ON]),n(r[COL_GH_MIN]),n(r[COL_GH_MAX]));
+    const plyNeed=need(n(r[COL_PLY_ON]),n(r[COL_PLY_MIN]),n(r[COL_PLY_MAX]));
+    const ghNeed=need(n(r[COL_GH_ON]),n(r[COL_GH_MIN]),n(r[COL_GH_MAX]));
 
-let plyPick=0;
-let ghPick=0;
+    let plyPick=0;
+    let ghPick=0;
 
-if(to==='plymouth'){
-plyPick=Math.min(plyNeed,sourceAvail);
-}
-else if(to==='green'){
-ghPick=Math.min(ghNeed,sourceAvail);
-}
-else{
-plyPick=Math.min(plyNeed,sourceAvail);
-ghPick=Math.min(ghNeed,sourceAvail-plyPick);
-}
+    if(to==='plymouth'){
+      plyPick=Math.min(plyNeed,sourceAvail);
+    }
+    else if(to==='green'){
+      ghPick=Math.min(ghNeed,sourceAvail);
+    }
+    else{
+      plyPick=Math.min(plyNeed,sourceAvail);
+      ghPick=Math.min(ghNeed,sourceAvail-plyPick);
+    }
 
-if(plyPick<=0 && ghPick<=0) return;
+    if(plyPick<=0 && ghPick<=0) return;
 
-const tr=document.createElement('tr');
-tr.innerHTML=`
-<td class="mono">${r[COL_BARCODE]||''}</td>
-<td>${r[COL_TITLE]||''}</td>
-<td>${r[COL_WH_BIN]||''}</td>
-<td><strong>${actualFrom}</strong></td>
-<td>${sourceAvail}</td>
-<td>${plyPick}</td>
-<td>${ghPick}</td>
-`;
-tbody.appendChild(tr);
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td class="mono">${r[COL_BARCODE]||''}</td>
+      <td>${r[COL_TITLE]||''}</td>
+      <td>${r[COL_WH_BIN]||''}</td>
+      <td><strong>${actualFrom}</strong></td>
+      <td>${sourceAvail}</td>
+      <td>${plyPick}</td>
+      <td>${ghPick}</td>
+    `;
+    tbody.appendChild(tr);
 
-lastPick.push({r,actualFrom,sourceAvail,plyPick,ghPick});
+    lastPick.push({r,actualFrom,sourceAvail,plyPick,ghPick});
+  });
 
-});
-
-document.getElementById('downloadBtn').disabled=!lastPick.length;
-
+  document.getElementById('downloadBtn').disabled=!lastPick.length;
 }
 
 function downloadCSV(){
+  let csv='Barcode,Title,WH Bin,From,SourceAvail,PLY,GH\n';
 
-let csv='Barcode,Title,WH Bin,From,SourceAvail,PLY,GH\n';
+  lastPick.forEach(p=>{
+    csv+=`="${p.r[COL_BARCODE]||''}",${p.r[COL_TITLE]||''},${p.r[COL_WH_BIN]||''},${p.actualFrom},${p.sourceAvail},${p.plyPick},${p.ghPick}\n`;
+  });
 
-lastPick.forEach(p=>{
-csv+=`="${p.r[COL_BARCODE]||''}",${p.r[COL_TITLE]||''},${p.r[COL_WH_BIN]||''},${p.actualFrom},${p.sourceAvail},${p.plyPick},${p.ghPick}\n`;
-});
-
-const blob=new Blob([csv],{type:'text/csv'});
-const url=URL.createObjectURL(blob);
-const a=document.createElement('a');
-a.href=url;
-a.download='pick.csv';
-a.click();
-URL.revokeObjectURL(url);
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='pick.csv';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 loadCSV();
-
 </script>
 
 </body>
