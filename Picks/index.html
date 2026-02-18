@@ -98,6 +98,20 @@ th{background:#f1f5f9}
 
     <span id="confirmState" class="badge off">Confirm Mode: OFF</span>
   </div>
+
+  <!-- DRAFT SAVE CONTROLS -->
+  <div class="row" style="margin-top:10px">
+    <button type="button" onclick="draftSaveNow()">Save Draft</button>
+    <button type="button" onclick="draftLoadNow()">Load Draft</button>
+    <button type="button" onclick="draftExport()">Export Draft (JSON)</button>
+    <button type="button" onclick="draftImport()">Import Draft (JSON)</button>
+    <button type="button" class="ghost" onclick="draftClear()">Clear Draft</button>
+    <span id="draftStatus" class="small"></span>
+  </div>
+
+  <div class="small" style="margin-top:8px">
+    Auto-saves while you work. Refresh / switching tools / closing the tab won’t lose this page’s progress.
+  </div>
 </div>
 
 <div class="card" id="confirmCard" style="display:none">
@@ -184,6 +198,225 @@ let lastConfirmScan = { key:'', ts:0 };
 
 const csvStatusEl = document.getElementById('csvStatus');
 const buildBtn = document.getElementById('buildBtn');
+
+/* ===============================
+   LIVEWELL STATE KIT (v1) - PICKS
+   =============================== */
+const STATE_KEY = 'livewell:picks:v1';
+const STATE_VERSION = 1;
+const draftStatusEl = document.getElementById('draftStatus');
+let _saveTimer = null;
+let _didAutoRestore = false;
+
+function nowISO(){ return new Date().toISOString(); }
+
+function setDraftStatus(msg){
+  if(draftStatusEl) draftStatusEl.textContent = msg || '';
+}
+
+function saveDraft(key, stateObj){
+  const payload = { _meta:{ version: STATE_VERSION, savedAt: nowISO() }, state: stateObj };
+  localStorage.setItem(key, JSON.stringify(payload));
+}
+
+function loadDraft(key){
+  const raw = localStorage.getItem(key);
+  if(!raw) return null;
+  try{
+    const payload = JSON.parse(raw);
+    if(!payload || !payload.state) return null;
+    return payload;
+  }catch{ return null; }
+}
+
+function clearDraft(key){ localStorage.removeItem(key); }
+
+function downloadJSON(filename, obj){
+  const text = JSON.stringify(obj, null, 2);
+  const blob = new Blob([text], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function pickFile(accept){
+  return new Promise((resolve)=>{
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept || '.json,application/json';
+    input.onchange = () => resolve(input.files?.[0] || null);
+    input.click();
+  });
+}
+
+async function loadJSONFile(){
+  const file = await pickFile('.json,application/json');
+  if(!file) return null;
+  const text = await file.text();
+  return JSON.parse(text);
+}
+
+function getState(){
+  return {
+    ui: {
+      fromLoc: document.getElementById('fromLoc')?.value || 'warehouse',
+      toLoc: document.getElementById('toLoc')?.value || 'plymouth',
+      confirmCardVisible: document.getElementById('confirmCard')?.style?.display || 'none',
+      allowOver: !!document.getElementById('allowOver')?.checked,
+      scanQty: Number(document.getElementById('scanQty')?.value || 1),
+      allocPriority: document.getElementById('allocPriority')?.value || 'ply_first'
+    },
+    data: {
+      meta: meta ? {...meta} : null,
+      confirmMode: !!confirmMode,
+      lastPick: Array.isArray(lastPick) ? lastPick.map(p=>({
+        toSel: p.toSel,
+        whAvail: p.whAvail,
+        plyPlan: p.plyPlan,
+        ghPlan: p.ghPlan,
+        plyPicked: p.plyPicked,
+        ghPicked: p.ghPicked,
+        // store a minimal "row key" set so we can re-link after reload
+        barcode: String(p.r?.[COL_BARCODE] || '').trim(),
+        sku: (function(){
+          try{ return getSku(p.r); }catch{ return ''; }
+        })()
+      })) : []
+    }
+  };
+}
+
+function applyState(st){
+  // restore UI selectors first
+  const ui = st.ui || {};
+  const fromEl = document.getElementById('fromLoc');
+  const toEl = document.getElementById('toLoc');
+  if(fromEl && ui.fromLoc) fromEl.value = ui.fromLoc;
+  if(toEl && ui.toLoc) toEl.value = ui.toLoc;
+
+  const allowOverEl = document.getElementById('allowOver');
+  if(allowOverEl) allowOverEl.checked = !!ui.allowOver;
+
+  const scanQtyEl = document.getElementById('scanQty');
+  if(scanQtyEl) scanQtyEl.value = String(Math.max(1, Math.floor(Number(ui.scanQty || 1))));
+
+  const allocEl = document.getElementById('allocPriority');
+  if(allocEl && ui.allocPriority) allocEl.value = ui.allocPriority;
+
+  // restore meta + confirmMode first
+  meta = st.data?.meta ? {...st.data.meta} : null;
+  confirmMode = !!st.data?.confirmMode;
+
+  // rebuild lastPick by re-linking to current CSV rows
+  const saved = Array.isArray(st.data?.lastPick) ? st.data.lastPick : [];
+  lastPick = [];
+  pickIndex = new Map();
+
+  if(saved.length && rows.length){
+    saved.forEach(s=>{
+      const match = rows.find(r=>{
+        const b = String(r[COL_BARCODE]||'').trim();
+        const sku = getSku(r);
+        return (s.barcode && b === s.barcode) || (s.sku && sku === s.sku);
+      });
+      if(!match) return;
+
+      const item = {
+        r: match,
+        toSel: s.toSel || (meta?.toSelection || document.getElementById('toLoc')?.value || 'plymouth'),
+        whAvail: Number(s.whAvail||0),
+        plyPlan: Number(s.plyPlan||0),
+        ghPlan: Number(s.ghPlan||0),
+        plyPicked: Number(s.plyPicked||0),
+        ghPicked: Number(s.ghPicked||0)
+      };
+      const idx = lastPick.length;
+      lastPick.push(item);
+
+      const barcode = String(match[COL_BARCODE]||'').trim();
+      if(barcode) pickIndex.set(barcode, idx);
+      const sku = getSku(match);
+      if(sku) pickIndex.set(sku, idx);
+    });
+  }
+
+  // re-render if we have something
+  if(meta && lastPick.length){
+    renderHead(meta.toSelection || document.getElementById('toLoc')?.value || 'plymouth');
+    renderTable();
+
+    document.getElementById('pickerBtn').disabled = false;
+    document.getElementById('confirmBtn').disabled = false;
+    document.getElementById('shopifyBtn').disabled = false;
+
+    // show/hide confirm card based on confirmMode
+    setConfirmUI(!!confirmMode);
+
+    document.getElementById('priorityWrap').style.display =
+      ((meta.toSelection || document.getElementById('toLoc')?.value) === 'both') ? 'flex' : 'none';
+  }
+}
+
+function scheduleSave(delayMs=150){
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(()=> {
+    try{
+      saveDraft(STATE_KEY, getState());
+      setDraftStatus(`Auto-saved ${new Date().toLocaleTimeString()}`);
+    }catch{}
+  }, delayMs);
+}
+
+function autoRestoreDraftOnce(){
+  if(_didAutoRestore) return;
+  _didAutoRestore = true;
+  const payload = loadDraft(STATE_KEY);
+  if(payload?.state){
+    applyState(payload.state);
+    setDraftStatus(`Restored draft (${new Date(payload._meta?.savedAt || Date.now()).toLocaleString()})`);
+  } else {
+    setDraftStatus('No saved draft (yet)');
+  }
+}
+
+function draftSaveNow(){
+  saveDraft(STATE_KEY, getState());
+  setDraftStatus(`Saved ${new Date().toLocaleTimeString()}`);
+}
+
+function draftLoadNow(){
+  const payload = loadDraft(STATE_KEY);
+  if(!payload){ setDraftStatus('No draft found'); return; }
+  applyState(payload.state);
+  setDraftStatus(`Loaded draft (${new Date(payload._meta?.savedAt || Date.now()).toLocaleString()})`);
+}
+
+function draftClear(){
+  if(!confirm('Clear saved draft for Picks?')) return;
+  clearDraft(STATE_KEY);
+  setDraftStatus('Draft cleared');
+}
+
+function draftExport(){
+  const payload = { _exportedAt: nowISO(), key: STATE_KEY, state: getState() };
+  downloadJSON(`LIVEWELL_PICKS_DRAFT_${new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')}.json`, payload);
+  setDraftStatus('Exported JSON');
+}
+
+async function draftImport(){
+  try{
+    const obj = await loadJSONFile();
+    const st = obj?.state || obj; // supports wrapper or raw
+    applyState(st);
+    saveDraft(STATE_KEY, getState());
+    setDraftStatus('Imported + saved');
+  }catch{
+    alert('Could not import JSON draft.');
+  }
+}
 
 function setCSVStatus(text, kind){
   csvStatusEl.textContent = text;
@@ -288,6 +521,9 @@ async function loadCSV(){
     dataLoaded = true;
     buildBtn.disabled = false;
     setCSVStatus(`CSV: Loaded (${rows.length} rows)`, 'on');
+
+    // after data is available, restore any draft
+    autoRestoreDraftOnce();
   }catch(e){
     rows = [];
     dataLoaded = false;
@@ -371,6 +607,7 @@ function buildPick(){
     document.getElementById('confirmBtn').disabled = true;
     document.getElementById('shopifyBtn').disabled = true;
     alert('No pick lines generated (nothing below min/max or no WH availability).');
+    scheduleSave();
     return;
   }
 
@@ -388,6 +625,8 @@ function buildPick(){
   document.getElementById('shopifyBtn').disabled = false;
 
   document.getElementById('priorityWrap').style.display = (toSel === 'both') ? 'flex' : 'none';
+
+  scheduleSave();
 }
 
 function renderTable(){
@@ -447,6 +686,8 @@ function renderTable(){
     tr.innerHTML = row;
     tbody.appendChild(tr);
   });
+
+  scheduleSave();
 }
 
 function setConfirmUI(on){
@@ -503,6 +744,7 @@ function toggleConfirmMode(){
     confirmMode = false;
     setConfirmUI(false);
   }
+  scheduleSave();
 }
 
 function resetConfirmed(){
@@ -513,6 +755,7 @@ function resetConfirmed(){
   renderTable();
   setStatusBadge('Confirmed counts reset to 0', 'warn');
   document.getElementById('confirmScan').focus();
+  scheduleSave();
 }
 
 function adjustPicked(idx, which, delta){
@@ -534,6 +777,7 @@ function adjustPicked(idx, which, delta){
     p.ghPicked = next;
   }
   renderTable();
+  scheduleSave();
 }
 
 function allocateBoth(p, qty){
@@ -590,6 +834,7 @@ function handleConfirmScan(q){
   const idx = pickIndex.get(q);
   if(idx === undefined){
     setStatusBadge('NOT IN PICK: ' + q, 'bad');
+    scheduleSave();
     return;
   }
 
@@ -601,6 +846,7 @@ function handleConfirmScan(q){
     const next = (p.plyPicked||0) + qty;
     if(!allowOver && next > (p.plyPlan||0)){
       setStatusBadge('OVER PICK (PLY): ' + (p.r[COL_TITLE]||''), 'warn');
+      scheduleSave();
       return;
     }
     p.plyPicked = next;
@@ -611,6 +857,7 @@ function handleConfirmScan(q){
     const next = (p.ghPicked||0) + qty;
     if(!allowOver && next > (p.ghPlan||0)){
       setStatusBadge('OVER PICK (GH): ' + (p.r[COL_TITLE]||''), 'warn');
+      scheduleSave();
       return;
     }
     p.ghPicked = next;
@@ -627,6 +874,7 @@ function handleConfirmScan(q){
 
     if(dPLY === 0 && dGH === 0){
       setStatusBadge('OVER PICK (BOTH): ' + (p.r[COL_TITLE]||''), 'warn');
+      scheduleSave();
       return;
     }
 
@@ -644,6 +892,7 @@ function handleConfirmScan(q){
   }
 
   renderTable();
+  scheduleSave();
 }
 
 document.getElementById('confirmScan').addEventListener('keydown', e=>{
@@ -655,6 +904,13 @@ document.getElementById('confirmScan').addEventListener('keydown', e=>{
     setTimeout(()=>document.getElementById('confirmScan').focus(), 25);
   }
 });
+
+// save when user changes selectors/inputs
+document.getElementById('fromLoc').addEventListener('change', scheduleSave);
+document.getElementById('toLoc').addEventListener('change', scheduleSave);
+document.getElementById('scanQty').addEventListener('change', scheduleSave);
+document.getElementById('allocPriority')?.addEventListener('change', scheduleSave);
+document.getElementById('allowOver').addEventListener('change', scheduleSave);
 
 function csvEscape(s){
   s = String(s ?? '');
@@ -737,6 +993,7 @@ function downloadShopifyCSV(){
     setStatusBadge('Confirm Mode started — scan staged items now', 'warn');
     setTimeout(()=>document.getElementById('confirmScan').focus(), 50);
 
+    scheduleSave();
     return;
   }
 
@@ -754,6 +1011,8 @@ function downloadShopifyCSV(){
     downloadText(uploadFilename('PLY'), buildUpload('plymouth'));
     downloadText(uploadFilename('GH'), buildUpload('green'));
   }
+
+  scheduleSave();
 }
 
 /** boot */
