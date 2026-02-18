@@ -101,7 +101,9 @@
 
   <h1>Bin</h1>
   <p class="sub">
-    Uses <code>pickle-data.csv</code>. Bin Assignment exports a CSV you can open in Excel for sequential bin formulas, or fill bins live.
+    Uses <code>pickle-data.csv</code>. Bin Assignment exports:
+    (1) Shopify bin upload CSV (Variant ID + bin metafield),
+    and (2) Label print CSV (BIN label then ITEM label alternating).
     <strong>Do not upload blank bins to Shopify</strong> unless you intend to clear bins.
   </p>
 
@@ -113,7 +115,6 @@
       <div style="min-width:260px;flex:1">
         <h2>Bin Assignment (Scan → CSV)</h2>
 
-        <!-- ✅ behavior spelled out -->
         <div class="sub" style="margin:0">
           <strong>How this works:</strong><br><br>
 
@@ -126,13 +127,13 @@
           • Bin is optional — you may leave it blank if generating sequential bins later in Excel.<br>
           • <strong>Important:</strong> uploading blank bins to Shopify will clear bin locations.<br><br>
 
-          Export includes ONLY:
-          <span class="mono">Variant ID</span> and
-          <span class="mono">Variant Metafield: custom.wh_bin [single_line_text_field]</span>
+          <strong>Exports:</strong><br>
+          • <span class="mono">Shopify Bin Upload</span> = Variant ID + bin metafield only<br>
+          • <span class="mono">Label Print</span> = alternating BIN label (bin text + bin barcode) then ITEM label (title + item barcode)
         </div>
       </div>
 
-      <div style="min-width:220px;text-align:right">
+      <div style="min-width:240px;text-align:right">
         <div id="assignStatus" class="badge warn">Waiting for CSV…</div>
         <div id="assignHint" class="sub" style="margin-top:8px"></div>
       </div>
@@ -150,7 +151,10 @@
       </div>
 
       <button class="btn btnPrimary" type="button" onclick="addAssignmentFromButtons()">Add</button>
-      <button class="btn" type="button" onclick="downloadAssignmentsCSV()" id="dlAssignBtn" disabled>Download CSV</button>
+
+      <button class="btn" type="button" onclick="downloadShopifyBinsCSV()" id="dlShopifyBtn" disabled>Shopify Bin Upload</button>
+      <button class="btn" type="button" onclick="downloadLabelPrintCSV()" id="dlLabelsBtn" disabled>Label Print CSV</button>
+
       <button class="btn btnDanger" type="button" onclick="clearAssignments()">Clear</button>
     </div>
 
@@ -162,7 +166,7 @@
           <tr>
             <th>#</th>
             <th>Variant ID</th>
-            <th>Barcode</th>
+            <th>Item Barcode</th>
             <th>SKU</th>
             <th>Title</th>
             <th>WH Bin (editable)</th>
@@ -171,6 +175,11 @@
         </thead>
         <tbody id="assignTable"></tbody>
       </table>
+    </div>
+
+    <div class="sub" style="margin-top:10px">
+      <strong>Barcode behavior:</strong> Bin label barcode = bin value. Item label barcode = <span class="mono">Variant Barcode</span>.
+      Both intended for Code 128 barcodes in label software.
     </div>
   </div>
 
@@ -215,8 +224,8 @@
 <script>
   const CSV_URL = '../pickle-data.csv';
 
-  // headers used in pickle-data.csv (your current standard)
-  const COL_BARCODE = 'Variant Barcode';
+  // headers in pickle-data.csv (Shopify export)
+  const COL_BARCODE = 'Variant Barcode'; // item barcode for ITEM label
   const COL_SKU = 'Variant SKU';
   const COL_TITLE = 'Title';
   const COL_BIN = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
@@ -227,15 +236,16 @@
     'Variant: ID','Variant: Id'
   ];
 
-  // duplicate protection window (ms) for lookup
+  // duplicate protection for lookup
   const DUP_WINDOW_MS = 2000;
 
   let rows = [];
   let logEntries = [];
   let lastScan = { key:'', ts:0 };
 
-  // Bin assignment list (scan order)
-  let assignments = []; // {variantId, barcode, sku, title, bin}
+  // assignment list in scan order
+  // {variantId, itemBarcode, sku, title, bin}
+  let assignments = [];
 
   const statusEl = document.getElementById('status');
   const metaEl = document.getElementById('meta');
@@ -248,8 +258,10 @@
   const assignScanEl = document.getElementById('assignScan');
   const assignBinEl = document.getElementById('assignBin');
   const assignTableEl = document.getElementById('assignTable');
-  const dlAssignBtn = document.getElementById('dlAssignBtn');
   const assignPreviewEl = document.getElementById('assignPreview');
+
+  const dlShopifyBtn = document.getElementById('dlShopifyBtn');
+  const dlLabelsBtn = document.getElementById('dlLabelsBtn');
 
   function esc(s){
     return String(s ?? '')
@@ -272,7 +284,7 @@
     assignHintEl.innerHTML = html || '';
   }
 
-  // CSV parsing (robust)
+  // CSV parsing
   function detectDelimiter(text) {
     const firstLine = (text.split(/\r?\n/).find(l => l.trim() !== '') || '');
     const candidates = [',',';','\t','|'];
@@ -358,6 +370,9 @@
       if(!hasVID){
         setAssignStatus('bad','Missing Variant ID column');
         setAssignHint(`<span class="badge bad">Fix</span> Add <span class="mono">Variant ID</span> to your pickle-data export for bin assignment.`);
+      } else if(!(COL_BARCODE in sample)){
+        setAssignStatus('bad','Missing Variant Barcode column');
+        setAssignHint(`<span class="badge bad">Fix</span> Add <span class="mono">${esc(COL_BARCODE)}</span> to your export so ITEM labels can print the item barcode.`);
       } else {
         setAssignStatus('good','Ready');
         setAssignHint(`<span class="badge good">Flow</span> Scan item → (auto to bin if blank) → scan bin → Enter → next item`);
@@ -373,7 +388,7 @@
 
   function openCSV(){ window.open(CSV_URL, '_blank', 'noopener'); }
 
-  // ===== Bin Lookup (existing) =====
+  // ===== Bin Lookup =====
   function renderLog(){
     scanCountEl.textContent = String(logEntries.length);
     logEl.innerHTML = '';
@@ -454,7 +469,7 @@
     }
   });
 
-  // ===== Bin Assignment (scan order, bin optional, fast focus flow) =====
+  // ===== Bin Assignment =====
   function findRowByScan(q){
     if(!rows.length) return null;
     return rows.find(r =>
@@ -464,7 +479,9 @@
   }
 
   function renderAssignments(){
-    dlAssignBtn.disabled = assignments.length === 0;
+    const has = assignments.length > 0;
+    dlShopifyBtn.disabled = !has;
+    dlLabelsBtn.disabled = !has;
 
     assignTableEl.innerHTML = '';
     assignments.forEach((a, i)=>{
@@ -472,7 +489,7 @@
       tr.innerHTML = `
         <td>${i+1}</td>
         <td class="mono">${esc(a.variantId)}</td>
-        <td class="mono">${esc(a.barcode)}</td>
+        <td class="mono">${esc(a.itemBarcode)}</td>
         <td class="mono">${esc(a.sku)}</td>
         <td>${esc(a.title)}</td>
         <td>
@@ -499,7 +516,7 @@
       const last = assignments[assignments.length-1];
       const binTxt = (last.bin && last.bin.trim()) ? ` → <span class="mono">${esc(last.bin)}</span>` : ` → <span class="mono">(bin blank)</span>`;
       assignPreviewEl.innerHTML =
-        `<span class="badge good">Added</span> <span class="sub">#${assignments.length}: ${esc(last.title)} (VID ${esc(last.variantId)})${binTxt}</span>`;
+        `<span class="badge good">Added</span> <span class="sub">#${assignments.length}: ${esc(last.title)}${binTxt}</span>`;
     } else {
       assignPreviewEl.textContent = '';
     }
@@ -527,9 +544,15 @@
       return false;
     }
 
+    const itemBarcode = String(row[COL_BARCODE]||'').trim();
+    if(!itemBarcode){
+      setAssignStatus('bad','Item barcode missing for this item');
+      return false;
+    }
+
     assignments.push({
       variantId,
-      barcode: String(row[COL_BARCODE]||'').trim(),
+      itemBarcode,
       sku: String(row[COL_SKU]||'').trim(),
       title: String(row[COL_TITLE]||'').trim(),
       bin: binVal || '' // can be blank
@@ -537,30 +560,28 @@
 
     setAssignStatus('good','Ready');
     renderAssignments();
-    dlAssignBtn.disabled = assignments.length === 0;
     return true;
   }
 
-  // Button "Add" behavior: uses current field values
+  // Button Add uses current field values and clears both after add
   function addAssignmentFromButtons(){
     const scanVal = assignScanEl.value.trim();
     const binVal = assignBinEl.value.trim();
     const ok = addAssignmentCore(scanVal, binVal);
     if(!ok) return;
 
-    // after add: clear both for safety, focus item
     assignScanEl.value = '';
     assignBinEl.value = '';
+    setAssignHint(`<span class="badge good">OK</span> Scan next item`);
     assignScanEl.focus();
   }
 
-  // ✅ Fast flow: item Enter moves focus to bin if bin empty; otherwise adds immediately.
+  // Fast flow: item Enter -> if bin empty, focus bin; else add immediately
   assignScanEl.addEventListener('keydown', (e)=>{
     if(e.key === 'Enter'){
       const scanVal = assignScanEl.value.trim();
       if(!scanVal) return;
 
-      // If bin is empty, jump to bin for scan bin next
       if(!assignBinEl.value.trim()){
         e.preventDefault();
         setAssignHint(`<span class="badge warn">Next</span> Scan bin value, then press Enter`);
@@ -568,12 +589,10 @@
         return;
       }
 
-      // If bin already present, add immediately
       e.preventDefault();
       const ok = addAssignmentCore(scanVal, assignBinEl.value.trim());
       if(!ok) return;
 
-      // Clear both to prevent accidental reuse of old bin
       assignScanEl.value = '';
       assignBinEl.value = '';
       setAssignHint(`<span class="badge good">OK</span> Scan next item`);
@@ -581,7 +600,7 @@
     }
   });
 
-  // ✅ Bin Enter always adds (bin can be blank for Excel sequencing)
+  // Bin Enter adds (bin can be blank for Excel sequencing)
   assignBinEl.addEventListener('keydown', (e)=>{
     if(e.key === 'Enter'){
       e.preventDefault();
@@ -590,7 +609,6 @@
       const ok = addAssignmentCore(scanVal, binVal);
       if(!ok) return;
 
-      // After add: clear both and return to item field
       assignScanEl.value = '';
       assignBinEl.value = '';
       setAssignHint(`<span class="badge good">OK</span> Scan next item`);
@@ -604,7 +622,6 @@
     if(!ok) return;
     assignments = [];
     renderAssignments();
-    dlAssignBtn.disabled = true;
     setAssignStatus('good','Ready');
     setAssignHint(`<span class="badge good">Ready</span> Scan item`);
     assignPreviewEl.textContent = '';
@@ -618,7 +635,8 @@
     return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
   }
 
-  function downloadAssignmentsCSV(){
+  // ===== Export 1: Shopify Bin Upload (Variant ID + bin metafield only) =====
+  function downloadShopifyBinsCSV(){
     if(!assignments.length) return;
 
     const H_VARIANT_ID = 'Variant ID';
@@ -626,15 +644,54 @@
 
     let csv = `${H_VARIANT_ID},${H_BIN}\n`;
     assignments.forEach(a=>{
-      // Bin can be blank — intentional for Excel sequencing
       csv += `${csvEscape(a.variantId)},${csvEscape(a.bin || '')}\n`;
     });
 
+    const name = makeFilename('SHOPIFY_BIN_UPLOAD');
+    downloadText(name, csv);
+  }
+
+  // ===== Export 2: Label Print CSV (BIN label then ITEM label alternating) =====
+  // Columns: label_type,line1,line2,barcode
+  // BIN label: line1=bin, line2=(optional) 'WH', barcode=bin
+  // ITEM label: line1=title, line2='SKU: xxx | Bin: yyy', barcode=itemBarcode
+  function downloadLabelPrintCSV(){
+    if(!assignments.length) return;
+
+    let csv = 'label_type,line1,line2,barcode\n';
+
+    assignments.forEach(a=>{
+      const bin = (a.bin || '').trim();
+
+      // BIN LABEL (requires a bin)
+      if(bin){
+        csv += `BIN,${csvEscape(bin)},${csvEscape('WH')},${csvEscape(bin)}\n`;
+      } else {
+        // If bin is blank, still print a BIN placeholder row? NO.
+        // We skip bin labels when bin is blank because you can't print a location label without a location.
+      }
+
+      // ITEM LABEL (always printable)
+      const title = a.title || '';
+      const skuPart = a.sku ? `SKU: ${a.sku}` : '';
+      const binPart = bin ? `Bin: ${bin}` : 'Bin: (blank)';
+      const line2 = skuPart ? `${skuPart} | ${binPart}` : binPart;
+
+      csv += `ITEM,${csvEscape(title)},${csvEscape(line2)},${csvEscape(a.itemBarcode)}\n`;
+    });
+
+    const name = makeFilename('LABEL_PRINT');
+    downloadText(name, csv);
+  }
+
+  function makeFilename(prefix){
     const d = new Date();
     const pad = (x)=>String(x).padStart(2,'0');
-    const name = `BIN_ASSIGN_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.csv`;
+    return `${prefix}_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.csv`;
+  }
 
-    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  function downloadText(name, text){
+    const blob = new Blob([text], {type:'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
