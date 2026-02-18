@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Bin Lookup</title>
+<title>Bin Utility</title>
 
 <link rel="manifest" href="../manifest.json">
 <meta name="theme-color" content="#0f172a">
@@ -12,88 +12,150 @@
   :root{
     --bg:#f7f9fc; --card:#fff; --text:#0f172a; --muted:#475569; --line:#e2e8f0;
     --goodbg:#dcfce7; --good:#166534; --badbg:#fee2e2; --bad:#7f1d1d;
+    --warnbg:#fff7ed; --warn:#9a3412;
     --blue:#1d4ed8; --blue2:#2563eb;
   }
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto;background:var(--bg);margin:0;padding:18px;color:var(--text)}
   .wrap{max-width:1100px;margin:0 auto}
-  .topnav{margin-bottom:14px}
-  .topnav .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-  .topnav a{display:inline-block;text-decoration:none}
-  .topnav button{
-    padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#fff;
-    font-weight:900;color:var(--text);cursor:pointer
+
+  /* NAV */
+  .topnav{
+    position:sticky; top:0; z-index:50;
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:10px;
+    margin-bottom:14px;
+    box-shadow:0 2px 10px rgba(0,0,0,.05);
   }
-  .topnav button:hover{background:#f1f5f9}
-  .topnav button.active{background:#111827;color:#fff;border-color:#111827}
-  .spacer{flex:1}
-  .small{font-size:12px;color:var(--muted);font-weight:800}
+  .topnav .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .topnav a{text-decoration:none}
+  .topnav button{
+    padding:8px 14px;border-radius:10px;border:1px solid #d1d5db;
+    font-weight:900;cursor:pointer;background:#fff;
+  }
+  .topnav button.active{background:#0f172a;color:#fff;border-color:#0f172a}
+  .topnav .spacer{flex:1}
+  .small{font-size:12px;color:var(--muted);font-weight:900}
 
   h1{margin:6px 0 6px;font-size:34px}
+  h2{margin:0 0 8px;font-size:20px}
   .sub{margin:0 0 14px;color:var(--muted);font-size:13px;line-height:1.35}
+
   .card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:14px;
     box-shadow:0 2px 10px rgba(0,0,0,.06);border:1px solid rgba(226,232,240,.7)}
   .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-  .badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:900;vertical-align:middle}
-  .good{background:var(--goodbg);color:var(--good)}
-  .bad{background:var(--badbg);color:var(--bad)}
+
+  .badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:900;vertical-align:middle;border:1px solid var(--line);background:#f8fafc}
+  .good{background:var(--goodbg);color:var(--good);border-color:#86efac}
+  .bad{background:var(--badbg);color:var(--bad);border-color:#fecaca}
+  .warn{background:var(--warnbg);color:var(--warn);border-color:#fed7aa}
+
   code{background:#f3f4f6;padding:2px 6px;border-radius:8px}
+
   .btn{padding:10px 12px;border-radius:12px;border:1px solid var(--line);font-weight:900;cursor:pointer;background:#fff}
   .btn:active{transform:translateY(1px)}
   .btnPrimary{background:var(--blue);border-color:var(--blue);color:#fff}
   .btnPrimary:hover{background:var(--blue2)}
-  .btnDanger{background:#991b1b;border-color:#991b1b;color:#fff}
-  .btnDanger:hover{background:#7f1d1d}
-  .btnSoft{background:#f8fafc}
-  .btnSoft:hover{background:#f1f5f9}
+  .btnDanger{background:#7f1d1d;border-color:#7f1d1d;color:#fff}
 
-  input{
-    font-size:26px;padding:14px 14px;width:100%;
-    border-radius:14px;border:1px solid #cbd5e1;box-sizing:border-box
-  }
-  .resultWrap{min-height:110px}
-  .bin{font-size:64px;font-weight:1000;margin:6px 0 0;letter-spacing:1px}
+  input.big{font-size:24px;padding:12px 14px;width:100%;border-radius:14px;border:1px solid #cbd5e1;box-sizing:border-box}
+  input.med{font-size:18px;padding:10px 12px;border-radius:12px;border:1px solid #cbd5e1;width:320px;max-width:100%;box-sizing:border-box}
+
+  .resultWrap{min-height:90px}
+  .binBig{font-size:56px;font-weight:1000;margin:6px 0 0;letter-spacing:1px}
+
   table{width:100%;border-collapse:collapse;font-size:14px}
   th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
   tbody tr:nth-child(even){background:#f9fafb}
-  .pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:2px 8px;font-size:12px;font-weight:900;color:#111;background:#fff}
   .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
-  .tabs{display:flex;gap:8px;flex-wrap:wrap}
-  .tab{padding:8px 10px;border-radius:999px;border:1px solid var(--line);background:#fff;font-weight:1000;cursor:pointer}
-  .tab.active{background:#111827;color:#fff;border-color:#111827}
-  .note{font-size:12px;color:var(--muted);font-weight:800}
-  .k{font-weight:1000}
-  .chip{display:inline-flex;gap:8px;align-items:center;padding:8px 10px;border-radius:12px;border:1px solid var(--line);background:#fff;font-weight:900}
-  .right{margin-left:auto}
+  .pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:2px 8px;font-size:12px;font-weight:900;color:#111;background:#fff}
 </style>
 </head>
 
 <body>
 <div class="wrap">
 
+  <!-- NAV -->
   <div class="topnav">
     <div class="row">
       <a href="../index.html"><button>🏠 Home</button></a>
       <a href="../Picks/index.html"><button>📋 Picks</button></a>
       <a href="../putaway/index.html"><button>📦 Putaway</button></a>
-      <a href="../bin/index.html"><button class="active">📍 Bin Lookup</button></a>
+      <a href="../bin/index.html"><button class="active">📍 Bin</button></a>
       <div class="spacer"></div>
       <div class="small">Ops Tools</div>
     </div>
   </div>
 
-  <h1>Bins</h1>
+  <h1>Bin</h1>
   <p class="sub">
-    Modes:
-    <span class="pill">Item → Bin</span> (scan an item, show its bin) and
-    <span class="pill">Bin → Items</span> (scan a bin, show what the system says is in it + WH on-hand).
-    Audit mismatches and export a <strong>Shopify-clean</strong> upload using <strong>Variant ID</strong> only.
+    Uses <code>pickle-data.csv</code>. Bin Assignment exports a CSV you can import to Shopify to set your bin metafield.
   </p>
 
+  <!-- =======================
+       BIN ASSIGNMENT (TOP)
+       ======================= -->
   <div class="card">
-    <div class="row">
-      <div id="status"><span class="badge bad">Not loaded</span> Waiting…</div>
-      <div class="right note" id="modeHint"></div>
+    <div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div>
+        <h2>Bin Assignment (Scan → CSV)</h2>
+        <div class="sub" style="margin:0">
+          Scan item (barcode or SKU), then type/scan bin (ex: <span class="pill mono">BAY-01-SHELF-02-BIN-03</span> or your format).
+          Each scan appends in order. Export has ONLY <span class="mono">Variant ID</span> + bin metafield.
+        </div>
+      </div>
+      <div id="assignStatus" class="badge warn">Waiting for CSV…</div>
     </div>
+
+    <div class="row" style="margin-top:12px;align-items:flex-end">
+      <div style="flex:1;min-width:260px">
+        <div class="small">Scan item (barcode or SKU)</div>
+        <input id="assignScan" class="big" placeholder="Scan item + Enter" autofocus />
+      </div>
+
+      <div style="min-width:280px">
+        <div class="small">Bin value (custom.wh_bin)</div>
+        <input id="assignBin" class="med mono" placeholder="Scan/Type bin value" />
+      </div>
+
+      <button class="btn btnPrimary" type="button" onclick="addAssignment()">Add</button>
+      <button class="btn" type="button" onclick="downloadAssignmentsCSV()" id="dlAssignBtn" disabled>Download CSV</button>
+      <button class="btn btnDanger" type="button" onclick="clearAssignments()">Clear</button>
+    </div>
+
+    <div id="assignPreview" class="sub" style="margin-top:10px"></div>
+
+    <div style="overflow:auto; max-height:45vh; margin-top:8px">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Variant ID</th>
+            <th>Barcode</th>
+            <th>SKU</th>
+            <th>Title</th>
+            <th>Bin</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="assignTable"></tbody>
+      </table>
+    </div>
+
+    <div class="sub" style="margin-top:10px">
+      Export headers are exactly:
+      <span class="pill mono">Variant ID</span>
+      and
+      <span class="pill mono">Variant Metafield: custom.wh_bin [single_line_text_field]</span>
+    </div>
+  </div>
+
+  <!-- =======================
+       BIN LOOKUP (YOUR ORIGINAL)
+       ======================= -->
+  <div class="card">
+    <div id="status"><span class="badge bad">Not loaded</span> Waiting…</div>
     <div id="meta" class="sub" style="margin-top:8px"></div>
 
     <div class="row" style="margin-top:10px">
@@ -101,109 +163,26 @@
       <button class="btn" type="button" onclick="openCSV()">Open CSV</button>
       <button class="btn" type="button" onclick="undoLastScan()">Undo Last Scan</button>
       <button class="btn" type="button" onclick="clearLog()">Clear Log</button>
-      <button class="btn btnDanger" type="button" onclick="clearFixes()">Clear Fixes</button>
-    </div>
-
-    <div class="row" style="margin-top:10px">
-      <div class="tabs">
-        <button class="tab active" id="tabItem" type="button" onclick="setMode('item')">Item → Bin</button>
-        <button class="tab" id="tabBin" type="button" onclick="setMode('bin')">Bin → Items</button>
-        <button class="tab" id="tabAudit" type="button" onclick="setMode('audit')">Audit / Fixes</button>
-      </div>
-
-      <div class="chip right" title="If ON, mismatches can be added to a Shopify upload (variant_id,wh_bin). Default OFF to avoid accidental bin changes.">
-        <label style="display:flex;gap:10px;align-items:center;cursor:pointer">
-          <input type="checkbox" id="allowFixes" />
-          <span>Allow Bin Fixes (adds to upload)</span>
-        </label>
-      </div>
     </div>
 
     <div class="sub" style="margin-top:10px">
       Scans this session: <strong id="scanCount">0</strong>
-      &nbsp; | &nbsp; Fixes queued: <strong id="fixCount">0</strong>
     </div>
   </div>
 
-  <!-- INPUT + RESULT -->
   <div class="card">
-    <div id="inputLabel" class="k" style="margin-bottom:8px">Scan barcode or SKU and press Enter</div>
-    <input id="scan" placeholder="Scan barcode or SKU and press Enter" autofocus />
+    <input id="scan" class="big" placeholder="Scan barcode or SKU and press Enter" />
     <div id="result" class="resultWrap" style="margin-top:12px"></div>
-
-    <div id="binContext" style="display:none;margin-top:12px">
-      <div class="row">
-        <div class="chip">Current Bin Context: <span class="mono" id="currentBin">—</span></div>
-        <div class="chip">Items in this bin (system): <span id="binItemCount">0</span></div>
-      </div>
-      <div class="note" style="margin-top:8px">
-        Optional: while in Bin → Items mode, you can also scan items to confirm they belong in this bin.
-        If a scanned item’s expected bin doesn’t match the current bin context, it will be flagged.
-      </div>
-    </div>
   </div>
 
-  <!-- BIN CONTENTS TABLE (Bin → Items) -->
-  <div class="card" id="binTableCard" style="display:none">
-    <div class="row" style="margin-bottom:8px">
-      <div class="k">System Contents for Bin: <span class="mono" id="binTableTitle">—</span></div>
-      <div class="right note">Shows WH on-hand for quick spot checks.</div>
-    </div>
-    <div style="overflow:auto; max-height:50vh">
-      <table>
-        <thead>
-          <tr>
-            <th>On Hand (WH)</th>
-            <th>SKU</th>
-            <th>Barcode</th>
-            <th>Title</th>
-            <th>Bin</th>
-          </tr>
-        </thead>
-        <tbody id="binTableBody"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- SCAN LOG -->
-  <div class="card" id="logCard">
+  <div class="card">
     <div style="font-weight:1000;margin-bottom:6px">Scan Log</div>
     <div class="sub" style="margin-top:0">Newest first. Click Delete if you need to remove a specific line.</div>
 
-    <div style="overflow:auto; max-height:45vh">
+    <div style="overflow:auto; max-height:60vh">
       <table>
-        <thead>
-          <tr><th>Time</th><th>Mode</th><th>Bin</th><th>Barcode</th><th>Title</th><th>Status</th><th>Actions</th></tr>
-        </thead>
+        <thead><tr><th>Time</th><th>Bin</th><th>Barcode</th><th>Title</th><th>Actions</th></tr></thead>
         <tbody id="log"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- AUDIT / FIXES -->
-  <div class="card" id="auditCard" style="display:none">
-    <div class="row" style="margin-bottom:10px">
-      <div class="k">Fix Queue (Shopify Upload)</div>
-      <button class="btn btnPrimary right" type="button" onclick="downloadFixUpload()">Download Shopify Upload (variant_id,wh_bin)</button>
-    </div>
-    <div class="note" style="margin-bottom:10px">
-      This export is <strong>upload-only</strong> and contains <strong>no extra columns</strong>.
-      It will download exactly: <code>variant_id,wh_bin</code>.
-    </div>
-
-    <div style="overflow:auto; max-height:55vh">
-      <table>
-        <thead>
-          <tr>
-            <th>Variant ID</th>
-            <th>SKU</th>
-            <th>Barcode</th>
-            <th>Expected Bin (system)</th>
-            <th>Actual Bin (scanned)</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="fixTable"></tbody>
       </table>
     </div>
   </div>
@@ -213,39 +192,37 @@
 <script>
   const CSV_URL = '../pickle-data.csv';
 
-  // REQUIRED / KEY HEADERS
+  // headers for lookup
   const COL_BARCODE = 'Variant Barcode';
   const COL_SKU = 'Variant SKU';
   const COL_TITLE = 'Title';
   const COL_BIN = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
-  const COL_ONHAND_WH = 'Inventory Available: Warehouse-66';
 
-  // Variant ID candidates (master identifier for uploads)
-  const VARIANT_ID_CANDIDATES = ['Variant ID','Variant Id','variant_id','variantId','VariantID','variantid'];
+  // Variant ID (master) candidates
+  const VARIANT_ID_CANDIDATES = ['Variant ID','Variant Id','variant_id','variant id','VariantID'];
 
   // duplicate protection window (ms)
   const DUP_WINDOW_MS = 2000;
 
   let rows = [];
-  let logEntries = []; // {ts, mode, status, bin, barcode, title}
+  let logEntries = []; // {ts, bin, barcode, title}
   let lastScan = { key:'', ts:0 };
 
-  // bin mode state
-  let mode = 'item'; // 'item' | 'bin' | 'audit'
-  let currentBinContext = '';       // scanned bin label in Bin → Items mode
-  let currentBinExpected = [];      // rows where system bin == currentBinContext
-
-  // Fix queue (strict for Shopify upload)
-  // each fix: { variantId, sku, barcode, expectedBin, actualBin }
-  let fixes = [];
+  // Bin assignment list (kept in scan order)
+  let assignments = []; // {variantId, barcode, sku, title, bin}
 
   const statusEl = document.getElementById('status');
   const metaEl = document.getElementById('meta');
   const resultEl = document.getElementById('result');
   const logEl = document.getElementById('log');
   const scanCountEl = document.getElementById('scanCount');
-  const fixCountEl = document.getElementById('fixCount');
-  const modeHintEl = document.getElementById('modeHint');
+
+  const assignStatusEl = document.getElementById('assignStatus');
+  const assignScanEl = document.getElementById('assignScan');
+  const assignBinEl = document.getElementById('assignBin');
+  const assignTableEl = document.getElementById('assignTable');
+  const dlAssignBtn = document.getElementById('dlAssignBtn');
+  const assignPreviewEl = document.getElementById('assignPreview');
 
   function esc(s){
     return String(s ?? '')
@@ -260,52 +237,9 @@
   function fmtDate(d){ try{ return new Date(d).toLocaleString(); }catch{ return String(d||''); } }
   function setMeta(html){ metaEl.innerHTML = html || ''; }
 
-  function setMode(next){
-    mode = next;
-
-    // tabs
-    document.getElementById('tabItem').classList.toggle('active', mode==='item');
-    document.getElementById('tabBin').classList.toggle('active', mode==='bin');
-    document.getElementById('tabAudit').classList.toggle('active', mode==='audit');
-
-    // cards
-    document.getElementById('auditCard').style.display = (mode==='audit') ? 'block' : 'none';
-    document.getElementById('binTableCard').style.display = (mode==='bin') ? 'block' : 'none';
-    document.getElementById('logCard').style.display = (mode==='audit') ? 'none' : 'block';
-
-    // bin context display
-    document.getElementById('binContext').style.display = (mode==='bin') ? 'block' : 'none';
-
-    // input label
-    const label = document.getElementById('inputLabel');
-    const input = document.getElementById('scan');
-    if(mode==='item'){
-      label.textContent = 'Scan barcode or SKU and press Enter';
-      input.placeholder = 'Scan barcode or SKU and press Enter';
-      modeHintEl.textContent = 'Item → Bin';
-    } else if(mode==='bin'){
-      label.textContent = 'Scan BIN label first (then optionally scan items to confirm)';
-      input.placeholder = 'Scan BIN label (e.g., R1-014) then Enter';
-      modeHintEl.textContent = 'Bin → Items';
-    } else {
-      label.textContent = 'Audit / Fix Queue';
-      input.placeholder = 'Audit view (no scanning)';
-      modeHintEl.textContent = 'Audit / Fixes';
-      resultEl.innerHTML = `<span class="badge good">Ready</span> <span class="sub">Download the Shopify upload or review fixes.</span>`;
-    }
-
-    // keep focus
-    setTimeout(()=>input.focus(), 50);
-
-    if(mode==='audit') renderFixTable();
-    if(mode!=='bin'){
-      // leave bin context in place but no special handling
-    }
-  }
-
-  function renderCounts(){
-    scanCountEl.textContent = String(logEntries.length);
-    fixCountEl.textContent = String(fixes.length);
+  function setAssignStatus(kind, text){
+    assignStatusEl.className = 'badge ' + (kind || 'warn');
+    assignStatusEl.textContent = text;
   }
 
   // CSV parsing (robust)
@@ -357,9 +291,17 @@
     return objects;
   }
 
+  function getVariantId(row){
+    for(const k of VARIANT_ID_CANDIDATES){
+      if(row[k] && String(row[k]).trim()) return String(row[k]).trim();
+    }
+    return '';
+  }
+
   async function loadCSV(){
     setStatus(false, 'Loading…');
     setMeta('');
+    setAssignStatus('warn','Loading CSV…');
     try{
       const url = CSV_URL + '?v=' + Date.now();
       const res = await fetch(url, { cache: 'no-store' });
@@ -372,45 +314,46 @@
       const delim = detectDelimiter(text);
       rows = toObjects(parseCSV(text, delim));
 
-      // Variant ID header detection sanity
-      const vidHeader = detectVariantIdHeader();
-      const warn = [];
-      if(!rows.length) warn.push('Parsed 0 rows');
-      if(rows.length && !(COL_BIN in rows[0])) warn.push(`Missing bin column: ${COL_BIN}`);
-      if(rows.length && !(COL_ONHAND_WH in rows[0])) warn.push(`Missing on-hand column: ${COL_ONHAND_WH}`);
-      if(!vidHeader) warn.push('Missing Variant ID column (required for uploads)');
-
-      setStatus(true, `Parsed ${rows.length} rows${warn.length ? ' — ⚠ ' + warn.join(' | ') : ''}`);
+      setStatus(true, `Parsed ${rows.length} rows`);
       setMeta(`
         <div><strong>CSV file:</strong> <code>${esc(CSV_URL)}</code></div>
         <div><strong>CSV Last Updated (server):</strong> ${lastModified ? fmtDate(lastModified) : '<span style="color:#7f1d1d;">Unknown</span>'}</div>
         <div><strong>Loaded at (this device):</strong> ${new Date().toLocaleString()}</div>
         ${etag ? `<div><strong>ETag:</strong> <code class="mono">${esc(etag)}</code></div>` : ''}
-        <div><strong>Variant ID column:</strong> ${vidHeader ? `<code>${esc(vidHeader)}</code>` : `<span style="color:#7f1d1d;font-weight:900;">NOT FOUND</span>`}</div>
       `);
+
+      // Validate variant id presence for assignment tool
+      const sample = rows[0] || {};
+      const hasVID = VARIANT_ID_CANDIDATES.some(k => k in sample);
+      if(!hasVID){
+        setAssignStatus('bad','Missing Variant ID column in pickle-data.csv');
+        assignPreviewEl.innerHTML = `<span class="badge bad">Heads up</span> <span class="sub">I can’t find a Variant ID column. Add it to your export (Variant ID) so this tool can create import-ready CSVs.</span>`;
+      } else {
+        setAssignStatus('good','Ready');
+        assignPreviewEl.textContent = '';
+      }
     }catch(e){
       rows = [];
       setStatus(false, `Couldn’t load <code>${esc(CSV_URL)}</code> — ${esc(e.message)}`);
       setMeta(`<div style="color:#7f1d1d;"><strong>Tip:</strong> Open <code>${esc(CSV_URL)}</code> in a browser tab to confirm it exists.</div>`);
+      setAssignStatus('bad','CSV load failed');
     }
   }
 
   function openCSV(){ window.open(CSV_URL, '_blank', 'noopener'); }
 
+  // ===== Lookup tool (existing) =====
   function renderLog(){
-    renderCounts();
+    scanCountEl.textContent = String(logEntries.length);
     logEl.innerHTML = '';
     for(let i=0;i<logEntries.length;i++){
       const e = logEntries[i];
       const tr = document.createElement('tr');
-      const badge = e.status === 'OK' ? 'good' : (e.status === 'WARN' ? 'bad' : 'bad');
       tr.innerHTML = `
         <td>${esc(new Date(e.ts).toLocaleTimeString())}</td>
-        <td><span class="pill">${esc(e.mode)}</span></td>
         <td class="mono">${esc(e.bin||'')}</td>
         <td class="mono">${esc(e.barcode||'')}</td>
         <td>${esc(e.title||'')}</td>
-        <td><span class="badge ${badge}">${esc(e.status)}</span></td>
         <td><button class="btn" type="button" data-i="${i}">Delete</button></td>
       `;
       tr.querySelector('button').addEventListener('click', (ev)=>{
@@ -420,194 +363,21 @@
       logEl.appendChild(tr);
     }
   }
+  function clearLog(){ logEntries = []; renderLog(); }
+  function undoLastScan(){ if(!logEntries.length) return; logEntries.shift(); renderLog(); }
 
-  function clearLog(){
-    logEntries = [];
-    renderLog();
-  }
-
-  function undoLastScan(){
-    if(!logEntries.length) return;
-    logEntries.shift(); // newest first
-    renderLog();
-  }
-
-  function clearFixes(){
-    fixes = [];
-    renderFixTable();
-    renderCounts();
-  }
-
-  function detectVariantIdHeader(){
-    if(!rows.length) return '';
-    const sample = rows[0];
-    for(const k of VARIANT_ID_CANDIDATES){
-      if(k in sample) return k;
-    }
-    return '';
-  }
-
-  function getVariantId(obj){
-    for(const k of VARIANT_ID_CANDIDATES){
-      if(k in obj){
-        const v = String(obj[k] || '').trim();
-        if(v) return v;
-      }
-    }
-    return '';
-  }
-
-  function showItemResult(match){
-    const bin = match[COL_BIN] || '—';
-    const title = match[COL_TITLE] || '';
-    const barcode = match[COL_BARCODE] || '';
-    const sku = match[COL_SKU] || '';
-    const onhand = (match[COL_ONHAND_WH] ?? '').toString().trim();
-
+  function showResult(match){
     resultEl.innerHTML = `
-      <div class="bin">${esc(bin)}</div>
-      <div style="font-weight:1000;margin-top:4px">${esc(title)}</div>
+      <div class="binBig">${esc(match[COL_BIN]||'—')}</div>
+      <div style="font-weight:1000;margin-top:4px">${esc(match[COL_TITLE]||'')}</div>
       <div class="sub" style="margin-top:6px">
-        <strong>On Hand (WH):</strong> <span class="mono">${esc(onhand)}</span>
+        <strong>Barcode:</strong> <span class="mono">${esc(match[COL_BARCODE]||'')}</span>
         &nbsp; | &nbsp;
-        <strong>Barcode:</strong> <span class="mono">${esc(barcode)}</span>
+        <strong>SKU:</strong> <span class="mono">${esc(match[COL_SKU]||'')}</span>
         &nbsp; | &nbsp;
-        <strong>SKU:</strong> <span class="mono">${esc(sku)}</span>
+        <strong>Variant ID:</strong> <span class="mono">${esc(getVariantId(match)||'')}</span>
       </div>
     `;
-  }
-
-  function showBinIntro(bin){
-    resultEl.innerHTML = `
-      <span class="badge good">Bin Loaded</span>
-      <span class="sub">System list for <span class="mono">${esc(bin)}</span> shown below. (On Hand = WH)</span>
-    `;
-  }
-
-  function renderBinTable(bin, items){
-    document.getElementById('binTableTitle').textContent = bin || '—';
-    const body = document.getElementById('binTableBody');
-    body.innerHTML = '';
-
-    const sorted = [...items].sort((a,b)=>{
-      const ao = Number(String(a[COL_ONHAND_WH]||'').trim()) || 0;
-      const bo = Number(String(b[COL_ONHAND_WH]||'').trim()) || 0;
-      return bo - ao;
-    });
-
-    for(const r of sorted){
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td class="mono">${esc(r[COL_ONHAND_WH] ?? '')}</td>
-        <td class="mono">${esc(r[COL_SKU] ?? '')}</td>
-        <td class="mono">${esc(r[COL_BARCODE] ?? '')}</td>
-        <td>${esc(r[COL_TITLE] ?? '')}</td>
-        <td class="mono">${esc(r[COL_BIN] ?? '')}</td>
-      `;
-      body.appendChild(tr);
-    }
-  }
-
-  function addFixIfAllowed(match, expectedBin, actualBin){
-    const allow = document.getElementById('allowFixes').checked;
-    if(!allow) return;
-
-    const variantId = getVariantId(match);
-    if(!variantId){
-      // Can't create upload without Variant ID. Still show warning.
-      resultEl.innerHTML = `
-        <span class="badge bad">Variant ID missing</span>
-        <span class="sub">This item can’t be added to a Shopify upload because Variant ID is not present in pickle-data.</span>
-      `;
-      return;
-    }
-
-    // Dedupe: keep only the latest fix per variant_id (last scan wins)
-    fixes = fixes.filter(f => f.variantId !== variantId);
-    fixes.unshift({
-      variantId,
-      sku: (match[COL_SKU] || '').trim(),
-      barcode: (match[COL_BARCODE] || '').trim(),
-      expectedBin: expectedBin || '',
-      actualBin: actualBin || ''
-    });
-    renderFixTable();
-    renderCounts();
-  }
-
-  function renderFixTable(){
-    const tbody = document.getElementById('fixTable');
-    if(!tbody) return;
-    tbody.innerHTML = '';
-    for(let i=0;i<fixes.length;i++){
-      const f = fixes[i];
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td class="mono">${esc(f.variantId)}</td>
-        <td class="mono">${esc(f.sku)}</td>
-        <td class="mono">${esc(f.barcode)}</td>
-        <td class="mono">${esc(f.expectedBin)}</td>
-        <td class="mono">${esc(f.actualBin)}</td>
-        <td><button class="btn" type="button" data-i="${i}">Remove</button></td>
-      `;
-      tr.querySelector('button').addEventListener('click', (ev)=>{
-        const idx = Number(ev.currentTarget.getAttribute('data-i'));
-        if(Number.isFinite(idx)) {
-          fixes.splice(idx,1);
-          renderFixTable();
-          renderCounts();
-        }
-      });
-      tbody.appendChild(tr);
-    }
-  }
-
-  function downloadFixUpload(){
-    // Strict Shopify upload: variant_id,wh_bin (NO NOISE)
-    if(!fixes.length){
-      alert('No fixes queued.');
-      return;
-    }
-    let csv = 'variant_id,wh_bin\n';
-    for(const f of fixes){
-      if(!f.variantId || !f.actualBin) continue;
-      csv += `${f.variantId},${escapeCsvSimple(f.actualBin)}\n`;
-    }
-    const name = makeFilename('BIN_UPLOAD');
-    downloadText(name, csv);
-  }
-
-  function escapeCsvSimple(s){
-    s = String(s ?? '');
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
-  }
-
-  function pad2(x){ return String(x).padStart(2,'0'); }
-  function makeFilename(tag){
-    const d = new Date();
-    const yyyy = d.getFullYear();
-    const mm = pad2(d.getMonth()+1);
-    const dd = pad2(d.getDate());
-    const hh = pad2(d.getHours());
-    const mi = pad2(d.getMinutes());
-    return `BINS_${yyyy}-${mm}-${dd}_${hh}${mi}_${tag}.csv`;
-  }
-  function downloadText(filename, text){
-    const blob = new Blob([text], {type:'text/csv;charset=utf-8;'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function lookupRowByItem(q){
-    // exact match on barcode or sku
-    return rows.find(r =>
-      (r[COL_BARCODE] && r[COL_BARCODE] === q) ||
-      (r[COL_SKU] && r[COL_SKU] === q)
-    );
   }
 
   function lookup(q){
@@ -623,89 +393,20 @@
     }
     lastScan = { key:q, ts:now };
 
-    if(mode === 'audit'){
-      return;
-    }
+    const m = rows.find(r =>
+      (r[COL_BARCODE] && r[COL_BARCODE]===q) ||
+      (r[COL_SKU] && r[COL_SKU]===q)
+    );
 
-    if(mode === 'bin'){
-      // Step 1: If no current bin context OR the scan looks like a bin label, treat as bin scan.
-      // We don’t enforce a bin format—whatever you scan becomes the context.
-      // If the scanned code matches a known barcode/sku, you can still confirm items (Step 2).
-      const maybeItem = lookupRowByItem(q);
-
-      if(!currentBinContext || !maybeItem){
-        // Treat as BIN scan
-        currentBinContext = q;
-        document.getElementById('currentBin').textContent = currentBinContext;
-
-        currentBinExpected = rows.filter(r => String(r[COL_BIN] || '').trim() === currentBinContext);
-        document.getElementById('binItemCount').textContent = String(currentBinExpected.length);
-
-        showBinIntro(currentBinContext);
-        renderBinTable(currentBinContext, currentBinExpected);
-
-        logEntries.unshift({
-          ts: now,
-          mode: 'BIN',
-          status: 'OK',
-          bin: currentBinContext,
-          barcode: '',
-          title: `Loaded bin list (${currentBinExpected.length} items)`
-        });
-        renderLog();
-        return;
-      }
-
-      // Step 2: It’s an item scan while a bin context exists → confirm expected bin
-      const expectedBin = String(maybeItem[COL_BIN] || '').trim();
-      const actualBin = currentBinContext;
-
-      const isMatch = expectedBin === actualBin;
-
-      showItemResult(maybeItem);
-
-      if(isMatch){
-        resultEl.innerHTML += `<div style="margin-top:10px"><span class="badge good">OK</span> <span class="sub">Item belongs in this bin.</span></div>`;
-        logEntries.unshift({
-          ts: now,
-          mode: 'BIN',
-          status: 'OK',
-          bin: actualBin,
-          barcode: maybeItem[COL_BARCODE] || '',
-          title: maybeItem[COL_TITLE] || ''
-        });
-      } else {
-        resultEl.innerHTML += `<div style="margin-top:10px"><span class="badge bad">MISMATCH</span> <span class="sub">System says <span class="mono">${esc(expectedBin||'—')}</span> but you scanned bin <span class="mono">${esc(actualBin)}</span>.</span></div>`;
-        logEntries.unshift({
-          ts: now,
-          mode: 'BIN',
-          status: 'WARN',
-          bin: actualBin,
-          barcode: maybeItem[COL_BARCODE] || '',
-          title: (maybeItem[COL_TITLE] || '') + ` (Expected: ${expectedBin || '—'})`
-        });
-
-        // If allowed, add a fix to update system bin to the scanned bin (variant_id,wh_bin)
-        addFixIfAllowed(maybeItem, expectedBin, actualBin);
-      }
-
-      renderLog();
-      return;
-    }
-
-    // mode === 'item' (Item → Bin)
-    const m = lookupRowByItem(q);
     if(!m){
       resultEl.innerHTML = `<span class="badge bad">Not found</span> <span class="sub">Try scanning barcode or SKU again.</span>`;
       return;
     }
 
-    showItemResult(m);
+    showResult(m);
 
     logEntries.unshift({
       ts: now,
-      mode: 'ITEM',
-      status: 'OK',
       bin: m[COL_BIN] || '',
       barcode: m[COL_BARCODE] || '',
       title: m[COL_TITLE] || ''
@@ -717,18 +418,154 @@
     if(e.key==='Enter'){
       const q = e.target.value.trim();
       e.target.value='';
-      if(!q) return;
       lookup(q);
       setTimeout(()=>document.getElementById('scan').focus(), 50);
     }
   });
 
+  // ===== Bin Assignment tool (NEW) =====
+  function findRowByScan(q){
+    if(!rows.length) return null;
+    return rows.find(r =>
+      (r[COL_BARCODE] && r[COL_BARCODE]===q) ||
+      (r[COL_SKU] && r[COL_SKU]===q)
+    ) || null;
+  }
+
+  function renderAssignments(){
+    dlAssignBtn.disabled = assignments.length === 0;
+
+    assignTableEl.innerHTML = '';
+    assignments.forEach((a, i)=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${i+1}</td>
+        <td class="mono">${esc(a.variantId)}</td>
+        <td class="mono">${esc(a.barcode)}</td>
+        <td class="mono">${esc(a.sku)}</td>
+        <td>${esc(a.title)}</td>
+        <td class="mono">${esc(a.bin)}</td>
+        <td><button class="btn" type="button" data-i="${i}">Delete</button></td>
+      `;
+      tr.querySelector('button').addEventListener('click', (ev)=>{
+        const idx = Number(ev.currentTarget.getAttribute('data-i'));
+        if(Number.isFinite(idx)) { assignments.splice(idx,1); renderAssignments(); }
+      });
+      assignTableEl.appendChild(tr);
+    });
+
+    if(assignments.length){
+      const last = assignments[assignments.length-1];
+      assignPreviewEl.innerHTML = `<span class="badge good">Added</span> <span class="sub">#${assignments.length}: ${esc(last.title)} → <span class="mono">${esc(last.bin)}</span></span>`;
+    }
+  }
+
+  function addAssignment(){
+    const scanVal = assignScanEl.value.trim();
+    const binVal = assignBinEl.value.trim();
+
+    if(!rows.length){
+      setAssignStatus('bad','CSV not loaded');
+      return;
+    }
+    if(!scanVal){
+      setAssignStatus('warn','Scan an item first');
+      return;
+    }
+    if(!binVal){
+      setAssignStatus('warn','Enter/scan a bin value');
+      assignBinEl.focus();
+      return;
+    }
+
+    const row = findRowByScan(scanVal);
+    if(!row){
+      setAssignStatus('bad','Item not found in CSV');
+      return;
+    }
+
+    const variantId = getVariantId(row);
+    if(!variantId){
+      setAssignStatus('bad','Variant ID missing for this item');
+      return;
+    }
+
+    assignments.push({
+      variantId,
+      barcode: String(row[COL_BARCODE]||'').trim(),
+      sku: String(row[COL_SKU]||'').trim(),
+      title: String(row[COL_TITLE]||'').trim(),
+      bin: binVal
+    });
+
+    setAssignStatus('good','Ready');
+    assignScanEl.value = '';
+    // keep bin value (often assigning multiple items to a run of bins, you may want to overwrite)
+    assignScanEl.focus();
+
+    renderAssignments();
+  }
+
+  // Enter on scan goes to bin field
+  assignScanEl.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){
+      const v = assignScanEl.value.trim();
+      if(!v) return;
+      assignBinEl.focus();
+    }
+  });
+
+  // Enter on bin field adds the assignment
+  assignBinEl.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){
+      addAssignment();
+    }
+  });
+
+  function clearAssignments(){
+    if(!assignments.length) return;
+    const ok = confirm('Clear the entire bin assignment list?');
+    if(!ok) return;
+    assignments = [];
+    renderAssignments();
+    setAssignStatus('good','Ready');
+    assignPreviewEl.textContent = '';
+    assignScanEl.focus();
+  }
+
+  function csvEscape(s){
+    s = String(s ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  }
+
+  function downloadAssignmentsCSV(){
+    if(!assignments.length) return;
+
+    const H_VARIANT_ID = 'Variant ID';
+    const H_BIN = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
+
+    let csv = `${H_VARIANT_ID},${H_BIN}\n`;
+    assignments.forEach(a=>{
+      csv += `${csvEscape(a.variantId)},${csvEscape(a.bin)}\n`;
+    });
+
+    const d = new Date();
+    const pad = (x)=>String(x).padStart(2,'0');
+    const name = `BIN_ASSIGN_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.csv`;
+
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   // boot
   loadCSV();
-  setMode('item');
-</script>
 
-<script>
+  // service worker
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('../sw.js').catch(()=>{});
