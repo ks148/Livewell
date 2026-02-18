@@ -1,1 +1,686 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Livewell Manual</title>
+  <style>
+    :root{
+      --bg:#f7f9fc; --card:#fff; --text:#0f172a; --muted:#475569; --line:#e2e8f0;
+      --goodbg:#dcfce7; --good:#166534; --badbg:#fee2e2; --bad:#7f1d1d;
+      --warnbg:#fff7ed; --warn:#9a3412;
+      --blue:#1d4ed8; --blue2:#2563eb;
+      --shadow:0 2px 10px rgba(0,0,0,.06);
+      --mono:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto;background:var(--bg);margin:0;padding:18px;color:var(--text)}
+    .wrap{max-width:1100px;margin:0 auto}
+    /* TOP NAV */
+    .topnav{
+      position:sticky; top:0; z-index:50;
+      background:#fff;border:1px solid var(--line);border-radius:14px;
+      padding:10px;margin-bottom:14px;box-shadow:0 2px 10px rgba(0,0,0,.05)
+    }
+    .topnav .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .topnav a{text-decoration:none}
+    .topnav button{
+      padding:8px 14px;border-radius:10px;border:1px solid #d1d5db;
+      font-weight:900;cursor:pointer;background:#fff
+    }
+    .topnav button.active{background:#0f172a;color:#fff;border-color:#0f172a}
+    .topnav .spacer{flex:1}
+    .small{font-size:12px;color:var(--muted);font-weight:900}
+    h1{margin:6px 0 6px;font-size:34px}
+    h2{margin:0;font-size:20px}
+    h3{margin:16px 0 8px;font-size:16px}
+    .sub{margin:6px 0 0;color:var(--muted);font-size:13px;line-height:1.45}
+    .card{
+      background:var(--card);border-radius:16px;padding:16px;margin-bottom:14px;
+      box-shadow:var(--shadow);border:1px solid rgba(226,232,240,.7)
+    }
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    .btn{padding:10px 12px;border-radius:12px;border:1px solid var(--line);font-weight:900;cursor:pointer;background:#fff}
+    .btnPrimary{background:var(--blue);border-color:var(--blue);color:#fff}
+    .btnPrimary:hover{background:var(--blue2)}
+    input.big{
+      font-size:20px;padding:12px 14px;width:100%;
+      border-radius:14px;border:1px solid #cbd5e1;box-sizing:border-box
+    }
+    .tag{
+      display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:900;
+      border:1px solid var(--line);background:#fff;color:#0f172a
+    }
+    .tag.good{background:var(--goodbg);color:var(--good);border-color:#86efac}
+    .tag.warn{background:var(--warnbg);color:var(--warn);border-color:#fed7aa}
+    .tag.bad{background:var(--badbg);color:var(--bad);border-color:#fecaca}
+    .pillrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .pill{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:900;color:#0f172a}
+    .grid2{display:grid;grid-template-columns:1fr;gap:14px}
+    @media(min-width:980px){ .grid2{grid-template-columns:1fr 1fr} }
+    .toc a{display:block;padding:6px 0;color:#1d4ed8;text-decoration:none;font-weight:900}
+    .toc a:hover{text-decoration:underline}
+    .mono{font-family:var(--mono)}
+    .kbd{font-family:var(--mono);border:1px solid var(--line);background:#fff;border-radius:8px;padding:1px 6px;font-weight:900}
+    .hr{height:1px;background:var(--line);margin:14px 0}
+    ul{margin:8px 0 0 18px}
+    li{margin:6px 0}
+    details{border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:#fff;margin:10px 0}
+    summary{cursor:pointer;font-weight:1000}
+    .note{border-left:4px solid #60a5fa;background:#eff6ff;padding:10px 12px;border-radius:10px;margin-top:10px}
+    .warnbox{border-left:4px solid #fb923c;background:#fff7ed;padding:10px 12px;border-radius:10px;margin-top:10px}
+    .danger{border-left:4px solid #ef4444;background:#fef2f2;padding:10px 12px;border-radius:10px;margin-top:10px}
+    .qa{border:1px dashed #cbd5e1;background:#f8fafc;border-radius:14px;padding:12px;margin-top:10px}
+    .q{font-weight:1000;margin-bottom:4px}
+    .a{color:#0f172a}
+    .results{margin-top:10px}
+    .hit{border:1px solid var(--line);background:#fff;border-radius:14px;padding:12px;margin:10px 0}
+    .hit .t{font-weight:1000}
+    .hit .m{color:var(--muted);font-size:13px;margin-top:6px;line-height:1.4}
+    .muted{color:var(--muted)}
+    .printOnly{display:none}
+    @media print{
+      body{background:#fff}
+      .topnav,.noPrint{display:none!important}
+      .card{box-shadow:none}
+      .printOnly{display:block}
+    }
+  </style>
+</head>
 
+<body>
+<div class="wrap">
+
+  <!-- NAV -->
+  <div class="topnav noPrint">
+    <div class="row">
+      <a href="../index.html"><button>🏠 Home</button></a>
+      <a href="../Picks/index.html"><button>📋 Picks</button></a>
+      <a href="../putaway/index.html"><button>📦 Putaway</button></a>
+      <a href="../bin/index.html"><button>📍 Bin</button></a>
+      <a href="../manual/index.html"><button class="active">📘 Manual</button></a>
+      <div class="spacer"></div>
+      <div class="small">Ops Tools</div>
+    </div>
+  </div>
+
+  <div class="printOnly">
+    <h1>Livewell Manual</h1>
+  </div>
+
+  <h1>Livewell Manual</h1>
+  <p class="sub">
+    This manual covers the Livewell suite: <strong>Picks</strong>, <strong>Putaway</strong>, and <strong>Bin</strong>.
+    It’s designed to answer “how do I…?” questions fast.
+  </p>
+
+  <!-- QUICK SEARCH / AI-LIKE ANSWERS -->
+  <div class="card noPrint">
+    <div class="row" style="justify-content:space-between;align-items:flex-end">
+      <div style="flex:1;min-width:260px">
+        <h2>Ask the Manual</h2>
+        <div class="sub">
+          Type a question like: <span class="mono">how do i assign a bin</span>,
+          <span class="mono">how do i confirm a pick</span>, <span class="mono">what does adjust do</span>.
+          This is an offline, local “AI-like” search (no internet, no chats).
+        </div>
+      </div>
+      <div class="pillrow">
+        <span class="pill">Works offline</span>
+        <span class="pill">Searchable</span>
+        <span class="pill">Boss-friendly</span>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:12px">
+      <input id="q" class="big" placeholder="Ask a question… (press Enter)" />
+      <button class="btn btnPrimary" type="button" onclick="runSearch()">Search</button>
+      <button class="btn" type="button" onclick="clearSearch()">Clear</button>
+      <button class="btn" type="button" onclick="window.print()">Print</button>
+    </div>
+
+    <div id="searchMeta" class="sub" style="margin-top:10px"></div>
+    <div id="searchResults" class="results"></div>
+  </div>
+
+  <div class="grid2">
+    <!-- QUICK START -->
+    <div class="card">
+      <h2>Quick Start (10 minutes)</h2>
+      <div class="sub">If you only read one section, read this.</div>
+
+      <h3>1) Picks</h3>
+      <ul>
+        <li>Open <strong>Picks</strong> → confirm CSV shows “Loaded”.</li>
+        <li>Select <strong>Pick FROM</strong> and <strong>Pick TO</strong>.</li>
+        <li>Click <strong>Build Pick</strong>.</li>
+        <li>Click <strong>Confirm (Scan)</strong> and scan items staged for transfer.</li>
+        <li>When done, click <strong>Shopify Upload</strong> to download the upload CSV(s).</li>
+      </ul>
+
+      <h3>2) Putaway</h3>
+      <ul>
+        <li>Open <strong>Putaway</strong> → scan items as you shelve them.</li>
+        <li>Download <strong>Putaway Report</strong> when finished (sorted by bin).</li>
+        <li>If you updated bins/min/max/weight, download the update CSV(s) and upload to Shopify.</li>
+      </ul>
+
+      <h3>3) Bin</h3>
+      <ul>
+        <li><strong>Bin Assignment</strong>: scan item → scan bin → download CSV for Shopify bin upload.</li>
+        <li><strong>Smart Bin Lookup</strong>: scan a BIN to see what should be there; scan a PRODUCT to see its bin.</li>
+      </ul>
+
+      <div class="note">
+        <strong>Rule of thumb:</strong> Livewell does not change Shopify automatically.
+        It generates CSVs you upload to Shopify.
+      </div>
+    </div>
+
+    <!-- WHAT LIVEWELL IS / DOES -->
+    <div class="card">
+      <h2>What Livewell Does</h2>
+      <div class="sub">
+        Livewell is a lightweight warehouse ops suite that uses <span class="mono">pickle-data.csv</span> as its “read” data source.
+        Livewell outputs CSV files for Shopify uploads.
+      </div>
+
+      <div class="pillrow">
+        <span class="pill"><span class="mono">pickle-data.csv</span> = source</span>
+        <span class="pill">Build picks from min/max</span>
+        <span class="pill">Confirm by scan</span>
+        <span class="pill">Bin assignment + labels</span>
+      </div>
+
+      <div class="hr"></div>
+
+      <h3>Key Concepts</h3>
+      <div class="qa">
+        <div class="q">What is “pickle-data.csv”?</div>
+        <div class="a">
+          A Shopify export (or scheduled export) containing inventory, titles, SKUs, barcodes, and metafields
+          (like min/max and WH bin).
+        </div>
+      </div>
+
+      <div class="qa">
+        <div class="q">Does Livewell save changes to Shopify?</div>
+        <div class="a">
+          No. Livewell generates CSVs. Shopify is updated only when someone uploads those CSVs in Shopify.
+        </div>
+      </div>
+
+      <div class="qa">
+        <div class="q">Why confirm picks by scanning?</div>
+        <div class="a">
+          To ensure Shopify transfers reflect what physically moved, not what was planned.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PICKS -->
+  <div class="card" id="picks">
+    <h2>Picks Manual</h2>
+    <div class="sub">
+      Picks builds replenishment transfers from Warehouse (or other FROM locations) to destination locations based on min/max rules.
+      Then you confirm by scanning staged items so the Shopify upload matches reality.
+    </div>
+
+    <h3>Step-by-step: Build a Pick</h3>
+    <ol>
+      <li>Wait for <span class="tag good">CSV: Loaded</span> at the top.</li>
+      <li>Select <strong>Pick FROM</strong> location.</li>
+      <li>Select <strong>Pick TO</strong>:
+        <ul>
+          <li><strong>Plymouth</strong> = one transfer file</li>
+          <li><strong>Green Harbor</strong> = one transfer file</li>
+          <li><strong>Both</strong> = two transfer files (WH→PLY and WH→GH)</li>
+        </ul>
+      </li>
+      <li>Click <strong>Build Pick</strong>.</li>
+      <li>Optional: click <strong>Picker</strong> to download a printable pick sheet.</li>
+    </ol>
+
+    <h3>Confirm Mode (Scan)</h3>
+    <ul>
+      <li>Click <strong>Confirm (Scan)</strong> to turn confirm mode ON.</li>
+      <li>Scan each staged item. Confirm counts will increase automatically.</li>
+      <li>Use <strong>Scan Qty</strong> if scanning multiple of the same item at once.</li>
+      <li>Use <strong>Allow overpick</strong> only if you intentionally want to move more than planned.</li>
+    </ul>
+
+    <div class="warnbox">
+      <strong>Important:</strong> Shopify Upload is based on <em>Confirmed</em> counts, not Planned counts.
+      If you don’t confirm, uploads may be wrong.
+    </div>
+
+    <h3>BOTH Picks: How auto-allocation works</h3>
+    <div class="sub">
+      When TO = BOTH, each scan automatically allocates to the destination(s) that still need the item.
+      If Plymouth is still short, it fills Plymouth first (or GH first if allocation setting is changed).
+    </div>
+    <ul>
+      <li><strong>Fill PLY then GH</strong> (default): scans go to Plymouth until it’s satisfied, then GH.</li>
+      <li><strong>Fill GH then PLY</strong>: opposite priority.</li>
+      <li>If an item is already fully confirmed for both destinations, additional scans will warn unless overpick is enabled.</li>
+    </ul>
+
+    <h3>What the “Adjust” buttons are for</h3>
+    <div class="qa">
+      <div class="q">What is the Adjust column for?</div>
+      <div class="a">
+        Adjust is a manual correction tool while in Confirm Mode:
+        if something ended up on the wrong cart, you can subtract from one destination and add to the other
+        without rebuilding the pick.
+      </div>
+    </div>
+
+    <h3>Shopify Upload (what you download)</h3>
+    <ul>
+      <li><strong>PLY</strong> pick → downloads 1 file: <span class="mono">WH_to_PLY_…_UPLOAD.csv</span></li>
+      <li><strong>GH</strong> pick → downloads 1 file: <span class="mono">WH_to_GH_…_UPLOAD.csv</span></li>
+      <li><strong>BOTH</strong> pick → downloads 2 files: one for PLY, one for GH.</li>
+    </ul>
+
+    <div class="danger">
+      <strong>Transfer workflow warning:</strong>
+      If you upload transfers to Shopify before the pick is physically done, inventory can appear “ghosted” in the destination.
+      Best practice is: <strong>Confirm first → then upload</strong>, or mark transfers carefully (see FAQ).
+    </div>
+  </div>
+
+  <!-- PUTAWAY -->
+  <div class="card" id="putaway">
+    <h2>Putaway Manual</h2>
+    <div class="sub">
+      Putaway is for scanning items during stocking/receiving and producing putaway lists and update CSVs.
+      It reads <span class="mono">pickle-data.csv</span> and can queue updates for bin, min/max, and weight.
+    </div>
+
+    <h3>Core workflow</h3>
+    <ol>
+      <li>Wait for CSV status “Loaded”.</li>
+      <li>Scan an item (barcode or SKU) → Livewell shows the WH bin and needed-to-max (PLY/GH).</li>
+      <li>Item is automatically added to the Putaway log (right side).</li>
+      <li>Optional: edit Bin / min / max / weight fields and queue updates.</li>
+      <li>Download the CSV(s) and upload to Shopify if you want Shopify updated.</li>
+    </ol>
+
+    <h3>What “Needed to Max” means</h3>
+    <div class="qa">
+      <div class="q">Why does Putaway show “Needed to Max”?</div>
+      <div class="a">
+        It tells you how many the destination store needs to reach its max, based on current on-hand and max values.
+        It helps prioritize replenishment during putaway.
+      </div>
+    </div>
+
+    <h3>Putaway Report</h3>
+    <ul>
+      <li>Download Putaway CSV to get a list sorted by bin so staff can walk bins efficiently.</li>
+      <li>This report is operational only; it does not update Shopify by itself.</li>
+    </ul>
+  </div>
+
+  <!-- BIN -->
+  <div class="card" id="bin">
+    <h2>Bin Manual</h2>
+    <div class="sub">
+      Bin has two tools: <strong>Bin Assignment</strong> (outputs CSVs) and <strong>Smart Bin Lookup</strong> (scan-only).
+    </div>
+
+    <h3>Bin Assignment (Scan → CSV)</h3>
+    <ol>
+      <li>Scan item barcode/SKU in <strong>Scan item</strong> box → press <span class="kbd">Enter</span>.</li>
+      <li>Cursor moves to Bin field if it’s empty.</li>
+      <li>Scan/type bin code (optional) → press <span class="kbd">Enter</span>.</li>
+      <li>The row is added to the table in scan order.</li>
+    </ol>
+
+    <div class="note">
+      <strong>Bin can be blank.</strong> If you plan to generate sequential bins in Excel, leave it blank and export the raw assignment CSV.
+    </div>
+
+    <h3>Exports (Bin Assignment)</h3>
+    <ul>
+      <li><strong>Shopify Bin Upload (CSV):</strong> Variant ID + WH Bin metafield column.</li>
+      <li><strong>Label Print CSV:</strong> produces alternating BIN label then ITEM label rows.</li>
+      <li><strong>Assignment CSV (raw):</strong> for Excel sequencing and cleanup.</li>
+    </ul>
+
+    <h3>Smart Bin Lookup (Scan BIN or PRODUCT)</h3>
+    <ul>
+      <li><strong>Scan BIN code</strong> → see all items assigned to that bin (system view).</li>
+      <li><strong>Scan PRODUCT</strong> (barcode or SKU) → see the bin that product should be in.</li>
+      <li>Use this to identify “wrong-bin” items during audits.</li>
+    </ul>
+
+    <details>
+      <summary>Labeling Standard (recommended)</summary>
+      <div class="sub" style="margin-top:8px">
+        Use a consistent code format like: <span class="mono">BAY-SHELF-BIN</span> (example: <span class="mono">BB01-S01-B01</span>).
+        Print two labels per bin:
+        <ul>
+          <li><strong>Bin label:</strong> shows bin code + barcode for bin code (Code 128 recommended).</li>
+          <li><strong>Item label:</strong> shows item title + item barcode (Code 128).</li>
+        </ul>
+        QR codes are not required unless you want phone camera scanning; Code 128 is best for standard scanners.
+      </div>
+    </details>
+  </div>
+
+  <!-- SAVING / NOT LOSING PROGRESS -->
+  <div class="card" id="saving">
+    <h2>Saving Progress (Important)</h2>
+    <div class="sub">
+      By default, web pages reset when you refresh or navigate away. Livewell can be configured to save your work locally in the browser
+      using <span class="mono">localStorage</span>.
+    </div>
+
+    <div class="qa">
+      <div class="q">If I switch utilities, do I lose what I was doing?</div>
+      <div class="a">
+        Without saving: yes, because each tool is a separate page. With saving enabled in each tool:
+        your work can be restored automatically when you return.
+      </div>
+    </div>
+
+    <div class="qa">
+      <div class="q">If I close the browser tab, do I lose everything?</div>
+      <div class="a">
+        Without saving: yes. With saving enabled: your work can be restored when you open the tool again on the same device/browser.
+      </div>
+    </div>
+
+    <div class="note">
+      <strong>Important limitations:</strong>
+      Saved progress is device + browser specific (example: Chrome on the warehouse iMac).
+      It does not sync between devices unless you build a server-backed storage system.
+    </div>
+  </div>
+
+  <!-- FAQ -->
+  <div class="card" id="faq">
+    <h2>FAQ</h2>
+
+    <details open>
+      <summary>How do I assign a bin?</summary>
+      <div class="sub" style="margin-top:8px">
+        Go to <strong>Bin</strong> → <strong>1) Bin Assignment</strong>.
+        Scan item → Enter → scan bin → Enter → download <strong>Shopify Bin Upload CSV</strong> and upload in Shopify.
+      </div>
+    </details>
+
+    <details>
+      <summary>Do I have to enter a bin number while scanning?</summary>
+      <div class="sub" style="margin-top:8px">
+        No. You can leave bin blank, export the raw assignment CSV, generate sequential bin codes in Excel, then upload.
+      </div>
+    </details>
+
+    <details>
+      <summary>How do I confirm a pick?</summary>
+      <div class="sub" style="margin-top:8px">
+        In <strong>Picks</strong>: Build Pick → click <strong>Confirm (Scan)</strong> → scan staged items.
+        Confirmed counts update automatically and Shopify upload files use confirmed counts.
+      </div>
+    </details>
+
+    <details>
+      <summary>Why does Shopify show inventory at the destination before we physically moved it?</summary>
+      <div class="sub" style="margin-top:8px">
+        Because a transfer was created/marked in a way that affects “available” counts at the destination.
+        Best practice: <strong>Confirm first, then upload</strong>.
+      </div>
+    </details>
+
+    <details>
+      <summary>What is “ghost inventory”?</summary>
+      <div class="sub" style="margin-top:8px">
+        When the system says inventory is in a location, but physically it is not there (usually caused by transfers created too early or not picked).
+      </div>
+    </details>
+
+    <details>
+      <summary>What barcode type should we use for bin labels?</summary>
+      <div class="sub" style="margin-top:8px">
+        Use <strong>Code 128</strong> for bin codes and item barcodes. QR is optional and not required.
+      </div>
+    </details>
+  </div>
+
+  <!-- TOC -->
+  <div class="card toc noPrint" id="toc">
+    <h2>Jump To</h2>
+    <div class="sub">Use these links during training.</div>
+    <div class="hr"></div>
+    <a href="#picks">Picks Manual</a>
+    <a href="#putaway">Putaway Manual</a>
+    <a href="#bin">Bin Manual</a>
+    <a href="#saving">Saving Progress</a>
+    <a href="#faq">FAQ</a>
+  </div>
+
+</div>
+
+<script>
+/**
+ * Offline “AI-like” search:
+ * - A small knowledge base of Q/A and sections
+ * - Keyword scoring + highlighting
+ * - Returns best matching answers
+ */
+
+const KB = [
+  {
+    id:"assign-bin",
+    title:"How do I assign a bin?",
+    tags:["bin","assign","assignment","scan","wh bin","metafield","shopify"],
+    body:
+`Go to Bin → 1) BIN ASSIGNMENT.
+1) Scan item (barcode or SKU) + Enter
+2) If bin is blank, cursor moves to Bin field
+3) Scan/type bin code + Enter (or leave blank if you’ll assign in Excel)
+4) Download “Shopify Bin Upload (CSV)”
+5) Upload CSV in Shopify to update the WH bin metafield.`
+  },
+  {
+    id:"bin-blank",
+    title:"Can the bin field be blank?",
+    tags:["bin","blank","excel","sequential","initial assignment"],
+    body:
+`Yes. Bin can be left blank during scanning if you want to generate sequential bins in Excel.
+Export “Assignment CSV (raw)”, fill bin values in Excel, then upload the Shopify bin CSV.`
+  },
+  {
+    id:"confirm-pick",
+    title:"How do I confirm a pick by scanning?",
+    tags:["picks","confirm","scan","barcode","sku","staged","transfer"],
+    body:
+`In Picks:
+1) Build Pick
+2) Click “Confirm (Scan)” to turn Confirm Mode ON
+3) Scan every staged item (use Scan Qty if needed)
+4) Confirmed counts update automatically
+5) Shopify Upload downloads files based on Confirmed counts (not Planned).`
+  },
+  {
+    id:"both-auto-alloc",
+    title:"How do BOTH picks auto-allocate scans?",
+    tags:["both","allocation","ply","gh","priority","fill"],
+    body:
+`When TO = BOTH, each scan is automatically allocated to the destination that still needs that item.
+Default: Fill PLY then GH (change priority in the Allocation dropdown).
+If both destinations are already satisfied, extra scans warn unless “Allow overpick” is enabled.`
+  },
+  {
+    id:"adjust-column",
+    title:"What is the Adjust column for?",
+    tags:["adjust","buttons","wrong cart","move","ply","gh","correction"],
+    body:
+`Adjust is a manual correction tool while Confirm Mode is ON.
+If an item ended up on the wrong cart, you can subtract from one destination and add to the other without rebuilding the pick.`
+  },
+  {
+    id:"shopify-upload",
+    title:"How do Shopify upload files work?",
+    tags:["shopify","upload","csv","transfer","ply","gh","both"],
+    body:
+`Picks downloads Shopify upload CSV(s) using Confirmed counts:
+• PLY only → 1 file (WH→PLY)
+• GH only → 1 file (WH→GH)
+• BOTH → 2 files (WH→PLY and WH→GH) and you create two transfers in Shopify.`
+  },
+  {
+    id:"ghost-inventory",
+    title:"Why do we get ghost inventory?",
+    tags:["ghost","inventory","transfer","in progress","destination","available"],
+    body:
+`Ghost inventory happens when Shopify says inventory is at a destination but physically it isn’t.
+Most common cause: transfers created/uploaded before items are actually picked/moved.
+Best practice: Confirm first → then upload; or manage transfer states carefully.`
+  },
+  {
+    id:"putaway-workflow",
+    title:"What is the Putaway workflow?",
+    tags:["putaway","scan","bins","needed to max","report"],
+    body:
+`Putaway:
+1) Scan item (barcode or SKU)
+2) Livewell shows WH bin + needed-to-max for PLY/GH
+3) Item logs to Putaway list automatically
+4) Download Putaway CSV (sorted by bin) when finished
+Optional: queue bin/min/max/weight updates and export update CSVs for Shopify.`
+  },
+  {
+    id:"saving-progress",
+    title:"Will I lose progress if I switch tools or close the tab?",
+    tags:["save","saving","progress","close tab","switch","localstorage"],
+    body:
+`Without saving enabled: yes, the page resets on navigation/refresh.
+With saving enabled: the tool can restore your in-progress work using browser localStorage on the same device/browser.`
+  },
+  {
+    id:"barcode-type",
+    title:"Do bin labels need QR codes?",
+    tags:["barcode","qr","code 128","labels","dymo"],
+    body:
+`No. QR is optional. Use Code 128 for bin codes and product barcodes with standard scanners.
+QR is only helpful if you want phone camera scanning.`
+  },
+];
+
+function normalize(s){
+  return String(s||'')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s\-]/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+function scoreItem(q, item){
+  const nq = normalize(q);
+  if(!nq) return 0;
+
+  const hay = normalize(item.title + ' ' + item.body + ' ' + (item.tags||[]).join(' '));
+
+  // simple scoring: phrase hits + word hits
+  let score = 0;
+
+  // phrase boost
+  if(hay.includes(nq)) score += 20;
+
+  const words = nq.split(' ').filter(Boolean);
+  for(const w of words){
+    if(!w) continue;
+    if(hay.includes(w)) score += (w.length >= 5 ? 6 : 3);
+  }
+
+  // title boost
+  const t = normalize(item.title);
+  for(const w of words){
+    if(t.includes(w)) score += 4;
+  }
+
+  return score;
+}
+
+function highlight(text, q){
+  const nq = normalize(q);
+  const words = nq.split(' ').filter(w=>w.length>=3);
+  if(!words.length) return text;
+
+  let out = text;
+  for(const w of words){
+    const re = new RegExp(`(${w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'ig');
+    out = out.replace(re, '<mark style="background:#fde68a;padding:0 2px;border-radius:4px">$1</mark>');
+  }
+  return out;
+}
+
+function runSearch(){
+  const q = document.getElementById('q').value.trim();
+  const meta = document.getElementById('searchMeta');
+  const box = document.getElementById('searchResults');
+  box.innerHTML = '';
+  meta.textContent = '';
+
+  if(!q){
+    meta.innerHTML = `<span class="tag warn">Type a question to search</span>`;
+    return;
+  }
+
+  const scored = KB.map(it=>({ it, s: scoreItem(q, it) }))
+    .filter(x=>x.s>0)
+    .sort((a,b)=>b.s-a.s)
+    .slice(0, 6);
+
+  if(!scored.length){
+    meta.innerHTML = `<span class="tag bad">No matches</span> <span class="muted">Try different words (example: “bin”, “confirm”, “upload”, “ghost”).</span>`;
+    return;
+  }
+
+  meta.innerHTML = `<span class="tag good">Results</span> <span class="muted">Showing top ${scored.length} matches for: <span class="mono">${q}</span></span>`;
+
+  for(const {it, s} of scored){
+    const div = document.createElement('div');
+    div.className = 'hit';
+    div.innerHTML = `
+      <div class="t">${highlight(it.title, q)}</div>
+      <div class="m">${highlight(it.body, q).replace(/\n/g,'<br>')}</div>
+      <div class="pillrow" style="margin-top:10px">
+        <span class="pill">Score: ${s}</span>
+        <span class="pill mono">#${it.id}</span>
+      </div>
+    `;
+    box.appendChild(div);
+  }
+}
+
+function clearSearch(){
+  document.getElementById('q').value = '';
+  document.getElementById('searchMeta').textContent = '';
+  document.getElementById('searchResults').innerHTML = '';
+  document.getElementById('q').focus();
+}
+
+document.getElementById('q').addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter'){
+    e.preventDefault();
+    runSearch();
+  }
+});
+
+// Small UX: prefill examples if URL has ?q=
+(function(){
+  const params = new URLSearchParams(location.search);
+  const q = params.get('q');
+  if(q){
+    document.getElementById('q').value = q;
+    runSearch();
+  }
+})();
+</script>
+
+</body>
+</html>
