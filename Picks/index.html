@@ -126,7 +126,6 @@ th{background:#f1f5f9}
 
     <button class="primary" onclick="buildPick()">Build Pick</button>
 
-    <!-- Separated buttons -->
     <button onclick="downloadPickerCSV()" id="pickerBtn" disabled>Picker</button>
     <button onclick="downloadShopifyCSV()" id="shopifyBtn" disabled>Shopify Upload</button>
   </div>
@@ -145,7 +144,7 @@ th{background:#f1f5f9}
       <div class="chip">Created: <span id="ph_date"></span></div>
     </div>
     <div class="small" style="margin-top:8px">
-      Use the same Transfer # in Shopify transfer name/notes if possible. Picker CSV includes this header block for printing.
+      Picker CSV prints this header block. Shopify Upload CSV is strict: sku,barcode,quantity only.
     </div>
   </div>
 
@@ -537,23 +536,27 @@ function buildPickerCsv(){
   return toCsv(lines);
 }
 
-/** Build SHOPIFY UPLOAD CSV (STRICT: sku, barcode, quantity) */
+/** Build SHOPIFY UPLOAD CSV (STRICT: sku,barcode,quantity) */
 function buildShopifyCsvForDest(dest){
-  // dest: 'plymouth' or 'green'
-  const lines = [];
-  lines.push(['sku','barcode','quantity']);
+  // IMPORTANT: Shopify upload must be exactly: sku,barcode,quantity
+  let csv = "sku,barcode,quantity\n";
+
+  const esc = (s) => {
+    s = String(s ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  };
 
   lastPick.forEach(p=>{
-    const sku = getSku(p.r);
+    const sku = (getSku(p.r) || '').trim();
     const barcode = String(p.r[COL_BARCODE] || '').trim();
-
     const qty = (dest === 'plymouth') ? p.plyPick : p.ghPick;
+
     if(!qty || qty <= 0) return;
 
-    lines.push([sku, barcode, qty]);
+    csv += `${esc(sku)},${esc(barcode)},${qty}\n`;
   });
 
-  return toCsv(lines);
+  return csv;
 }
 
 /** Button actions **/
