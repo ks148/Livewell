@@ -9,14 +9,26 @@
 body{font-family:system-ui;margin:20px;background:#f4f6f9}
 .card{background:#fff;padding:16px;border-radius:14px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
 .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-button{padding:8px 14px;border-radius:10px;border:1px solid #d1d5db;font-weight:700;cursor:pointer}
+button{padding:8px 14px;border-radius:10px;border:1px solid #d1d5db;font-weight:700;cursor:pointer;background:#fff}
 button:disabled{opacity:.5;cursor:not-allowed}
 .primary{background:#2563eb;color:#fff;border-color:#2563eb}
-select{padding:6px 10px;border-radius:8px;border:1px solid #d1d5db;font-weight:600}
+.ghost{background:#0f172a;color:#fff;border-color:#0f172a}
+select,input[type="number"]{padding:6px 10px;border-radius:8px;border:1px solid #d1d5db;font-weight:600}
 table{width:100%;border-collapse:collapse}
-th,td{padding:8px;border-bottom:1px solid #e5e7eb;text-align:left}
+th,td{padding:8px;border-bottom:1px solid #e5e7eb;text-align:left;vertical-align:middle}
 th{background:#f1f5f9}
 .mono{font-family:monospace}
+.small{font-size:12px;color:#64748b;font-weight:700}
+.badge{display:inline-block;padding:4px 10px;border-radius:999px;font-weight:800;font-size:12px;border:1px solid #e5e7eb;background:#f8fafc}
+.badge.on{background:#dcfce7;border-color:#86efac;color:#166534}
+.badge.off{background:#fee2e2;border-color:#fecaca;color:#7f1d1d}
+.badge.warn{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
+.scanbox{font-size:22px;padding:10px 12px;width:320px;max-width:100%;border-radius:10px;border:1px solid #cbd5e1}
+.k{font-weight:900}
+.pill{display:inline-block;border:1px solid #e5e7eb;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:900;background:#fff}
+.pill.active{background:#111827;color:#fff;border-color:#111827}
+.miniBtn{padding:6px 10px;border-radius:10px;border:1px solid #d1d5db;font-weight:900;cursor:pointer;background:#fff}
+.miniBtn:disabled{opacity:.4;cursor:not-allowed}
 </style>
 </head>
 
@@ -43,8 +55,49 @@ th{background:#f1f5f9}
 
     <button class="primary" onclick="buildPick()">Build Pick</button>
     <button onclick="downloadPickerCSV()" id="pickerBtn" disabled>Picker</button>
+    <button class="ghost" onclick="toggleConfirmMode()" id="confirmBtn" disabled>Confirm (Scan)</button>
     <button onclick="downloadShopifyCSV()" id="shopifyBtn" disabled>Shopify Upload</button>
+
+    <span id="confirmState" class="badge off">Confirm Mode: OFF</span>
   </div>
+</div>
+
+<div class="card" id="confirmCard" style="display:none">
+  <div class="row" style="justify-content:space-between;align-items:flex-start">
+    <div>
+      <div class="k" style="margin-bottom:6px">Confirm Pick by Barcode Scan</div>
+      <div class="small">
+        Scan items that are physically staged to move. Counts build automatically. Shopify Upload will be generated from these confirmed counts.
+      </div>
+    </div>
+    <div class="small" id="confirmMeta"></div>
+  </div>
+
+  <div class="row" style="margin-top:12px;align-items:center">
+    <input id="confirmScan" class="scanbox" placeholder="Scan barcode or SKU + Enter" autocomplete="off" inputmode="none">
+
+    <label class="row" style="gap:8px">
+      <span class="small">Scan Qty</span>
+      <input id="scanQty" type="number" min="1" step="1" value="1" style="width:90px">
+    </label>
+
+    <label class="row" style="gap:8px">
+      <input type="checkbox" id="allowOver" />
+      <span class="small">Allow overpick</span>
+    </label>
+
+    <div id="destToggle" class="row" style="gap:8px;display:none">
+      <span class="small">Confirming:</span>
+      <button class="pill active" type="button" id="destPLY" onclick="setConfirmDest('plymouth')">PLY</button>
+      <button class="pill" type="button" id="destGH" onclick="setConfirmDest('green')">GH</button>
+    </div>
+
+    <div style="flex:1"></div>
+
+    <button class="miniBtn" type="button" onclick="resetConfirmed()">Reset Confirmed</button>
+  </div>
+
+  <div id="scanStatus" class="badge" style="margin-top:12px">Ready to scan</div>
 </div>
 
 <div class="card">
@@ -57,7 +110,6 @@ th{background:#f1f5f9}
 </div>
 
 <script>
-
 const CSV_URL = '../pickle-data.csv';
 
 const COL_BARCODE = 'Variant Barcode';
@@ -76,28 +128,32 @@ const COL_GH_MIN = 'Variant Metafield: custom.mingh [number_integer]';
 const COL_GH_MAX = 'Variant Metafield: custom.maxgh [number_integer]';
 
 let rows = [];
-let lastPick = [];
+let lastPick = [];   // [{ r, plyPlan, ghPlan, plyPicked, ghPicked, toSel, whAvail }]
 let meta = null;
+
+let confirmMode = false;
+let confirmDest = 'plymouth'; // used only when toSelection === 'both'
+let pickIndex = new Map();    // key: barcode/sku => index in lastPick
+
+// duplicate scan protection (scanner double-fire)
+const DUP_WINDOW_MS = 350;
+let lastConfirmScan = { key:'', ts:0 };
 
 function n(v){
   const num = Number(String(v ?? '').trim());
   return Number.isFinite(num) ? Math.floor(num) : 0;
 }
-
 function need(on,min,max){
   if(!(on < min)) return 0;
   return Math.max(max - on, 0);
 }
-
 function getSku(row){
   for(const k of SKU_CANDIDATES){
     if(k in row && row[k]) return row[k].trim();
   }
   return '';
 }
-
 function pad(x){ return String(x).padStart(2,'0'); }
-
 function nowStamp(){
   const d = new Date();
   return {
@@ -105,102 +161,386 @@ function nowStamp(){
     time: `${pad(d.getHours())}${pad(d.getMinutes())}`
   };
 }
-
 function locCode(val){
   if(val === 'warehouse') return 'WH';
   if(val === 'container') return 'PLYMCon';
   if(val === 'plymouth') return 'PLY';
   if(val === 'green') return 'GH';
-  return val.toUpperCase();
+  if(val === 'both') return 'BOTH';
+  return String(val||'').toUpperCase();
+}
+
+// Robust CSV parser (handles commas/quotes)
+function parseCSV(text){
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const out = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+
+  for(let i=0;i<text.length;i++){
+    const c = text[i];
+    if(inQuotes){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if(c === '"') inQuotes = true;
+      else if(c === ','){ row.push(field); field=''; }
+      else if(c === '\n'){
+        row.push(field); field='';
+        if(row.length > 1 || (row.length === 1 && row[0].trim() !== '')) out.push(row);
+        row = [];
+      } else field += c;
+    }
+  }
+  row.push(field);
+  if(row.length > 1 || (row.length === 1 && row[0].trim() !== '')) out.push(row);
+
+  if(!out.length) return { headers: [], records: [] };
+
+  const headers = out[0].map(h => String(h ?? '').trim());
+  const records = out.slice(1).map(r=>{
+    const obj = {};
+    headers.forEach((h, idx)=> obj[h] = (r[idx] ?? '').trim());
+    return obj;
+  });
+  return { headers, records };
 }
 
 async function loadCSV(){
-  const res = await fetch(CSV_URL + '?v=' + Date.now());
+  const res = await fetch(CSV_URL + '?v=' + Date.now(), { cache:'no-store' });
   const text = await res.text();
-  const lines = text.trim().split('\n').map(r=>r.split(','));
-  const headers = lines[0];
-  rows = lines.slice(1).map(r=>{
-    const obj={};
-    headers.forEach((h,i)=>obj[h.trim()]=r[i]?.trim());
-    return obj;
-  });
+  const parsed = parseCSV(text);
+  rows = parsed.records;
 }
 
-function renderHead(to){
-  let h = `<th>Barcode</th><th>Title</th><th>WH Bin</th><th>WH Avail</th>`;
-  if(to==='plymouth') h+=`<th>PLY</th>`;
-  else if(to==='green') h+=`<th>GH</th>`;
-  else h+=`<th>PLY</th><th>GH</th>`;
+function renderHead(toSel){
+  let h = `<th>Barcode</th><th>SKU</th><th>Title</th><th>WH Bin</th><th>WH Avail</th>`;
+
+  if(toSel === 'plymouth'){
+    h += `<th>Planned PLY</th><th>Confirmed PLY</th><th>Remaining</th><th>Adjust</th>`;
+  } else if(toSel === 'green'){
+    h += `<th>Planned GH</th><th>Confirmed GH</th><th>Remaining</th><th>Adjust</th>`;
+  } else {
+    h += `<th>Planned PLY</th><th>Confirmed PLY</th><th>Remaining PLY</th>
+          <th>Planned GH</th><th>Confirmed GH</th><th>Remaining GH</th><th>Adjust</th>`;
+  }
+
   document.getElementById('tableHead').innerHTML = h;
 }
 
 function buildPick(){
   const from = document.getElementById('fromLoc').value;
-  const to = document.getElementById('toLoc').value;
+  const toSel = document.getElementById('toLoc').value;
 
-  renderHead(to);
+  confirmMode = false;
+  setConfirmUI(false);
+
+  renderHead(toSel);
   lastPick = [];
+  pickIndex.clear();
   document.getElementById('results').innerHTML='';
 
   rows.forEach(r=>{
-    const barcode=r[COL_BARCODE];
-    const title=r[COL_TITLE];
+    const barcode = String(r[COL_BARCODE] || '').trim();
+    const title = String(r[COL_TITLE] || '').trim();
     if(!barcode && !title) return;
 
-    const wh=n(r[COL_WH_AV]);
-    if(wh<=0) return;
+    const wh = n(r[COL_WH_AV]);
+    if(wh <= 0) return;
 
-    const plyNeed=need(n(r[COL_PLY_ON]),n(r[COL_PLY_MIN]),n(r[COL_PLY_MAX]));
-    const ghNeed=need(n(r[COL_GH_ON]),n(r[COL_GH_MIN]),n(r[COL_GH_MAX]));
+    const plyNeed = need(n(r[COL_PLY_ON]), n(r[COL_PLY_MIN]), n(r[COL_PLY_MAX]));
+    const ghNeed  = need(n(r[COL_GH_ON]),  n(r[COL_GH_MIN]),  n(r[COL_GH_MAX]));
 
-    let plyPick=0,ghPick=0;
-    if(to==='plymouth') plyPick=Math.min(plyNeed,wh);
-    else if(to==='green') ghPick=Math.min(ghNeed,wh);
-    else{
-      plyPick=Math.min(plyNeed,wh);
-      ghPick=Math.min(ghNeed,wh-plyPick);
+    let plyPlan = 0, ghPlan = 0;
+    if(toSel === 'plymouth') plyPlan = Math.min(plyNeed, wh);
+    else if(toSel === 'green') ghPlan = Math.min(ghNeed, wh);
+    else {
+      plyPlan = Math.min(plyNeed, wh);
+      ghPlan  = Math.min(ghNeed, wh - plyPlan);
     }
 
-    if(plyPick<=0 && ghPick<=0) return;
+    if(plyPlan <= 0 && ghPlan <= 0) return;
 
-    lastPick.push({r,plyPick,ghPick,to,wh});
+    const item = {
+      r,
+      toSel,
+      whAvail: wh,
+      plyPlan, ghPlan,
+      plyPicked: 0,
+      ghPicked: 0
+    };
+    const idx = lastPick.length;
+    lastPick.push(item);
+
+    // Build fast lookup index by barcode and sku
+    if(barcode) pickIndex.set(barcode, idx);
+    const sku = getSku(r);
+    if(sku) pickIndex.set(sku, idx);
   });
 
-  const tbody=document.getElementById('results');
-  lastPick.forEach(p=>{
-    const tr=document.createElement('tr');
-    let row=`<td class="mono">${p.r[COL_BARCODE]}</td>
-             <td>${p.r[COL_TITLE]}</td>
-             <td>${p.r[COL_WH_BIN]||''}</td>
-             <td>${p.wh}</td>`;
-    if(p.to==='plymouth') row+=`<td>${p.plyPick}</td>`;
-    else if(p.to==='green') row+=`<td>${p.ghPick}</td>`;
-    else row+=`<td>${p.plyPick}</td><td>${p.ghPick}</td>`;
-    tr.innerHTML=row;
-    tbody.appendChild(tr);
-  });
+  renderTable();
 
   if(!lastPick.length) return;
 
-  const stamp=nowStamp();
-  meta={
-    from:locCode(from),
-    to:locCode(to),
-    date:stamp.date,
-    time:stamp.time,
-    toSelection:to
+  const stamp = nowStamp();
+  meta = {
+    from: locCode(from),
+    to: locCode(toSel),
+    date: stamp.date,
+    time: stamp.time,
+    toSelection: toSel
   };
 
-  document.getElementById('pickerBtn').disabled=false;
-  document.getElementById('shopifyBtn').disabled=false;
+  document.getElementById('pickerBtn').disabled = false;
+  document.getElementById('confirmBtn').disabled = false;
+  document.getElementById('shopifyBtn').disabled = false;
+
+  // Default confirm dest
+  confirmDest = (toSel === 'green') ? 'green' : 'plymouth';
 }
+
+function renderTable(){
+  const tbody = document.getElementById('results');
+  tbody.innerHTML = '';
+
+  lastPick.forEach((p, idx)=>{
+    const barcode = String(p.r[COL_BARCODE] || '').trim();
+    const sku = getSku(p.r);
+    const title = String(p.r[COL_TITLE] || '').trim();
+    const bin = String(p.r[COL_WH_BIN] || '').trim();
+
+    const tr = document.createElement('tr');
+
+    const adjustBtns = (which)=> {
+      // which: 'ply' | 'gh' | 'both'
+      const btnMinusPLY = `<button class="miniBtn" type="button" ${(!confirmMode ? 'disabled' : '')} onclick="adjustPicked(${idx},'ply',-1)">- PLY</button>`;
+      const btnPlusPLY  = `<button class="miniBtn" type="button" ${(!confirmMode ? 'disabled' : '')} onclick="adjustPicked(${idx},'ply',+1)">+ PLY</button>`;
+      const btnMinusGH  = `<button class="miniBtn" type="button" ${(!confirmMode ? 'disabled' : '')} onclick="adjustPicked(${idx},'gh',-1)">- GH</button>`;
+      const btnPlusGH   = `<button class="miniBtn" type="button" ${(!confirmMode ? 'disabled' : '')} onclick="adjustPicked(${idx},'gh',+1)">+ GH</button>`;
+
+      if(p.toSel === 'plymouth') return `<div class="row" style="gap:6px">${btnMinusPLY}${btnPlusPLY}</div>`;
+      if(p.toSel === 'green') return `<div class="row" style="gap:6px">${btnMinusGH}${btnPlusGH}</div>`;
+      return `<div class="row" style="gap:6px;flex-wrap:wrap">${btnMinusPLY}${btnPlusPLY}${btnMinusGH}${btnPlusGH}</div>`;
+    };
+
+    const plyRemain = Math.max((p.plyPlan||0) - (p.plyPicked||0), 0);
+    const ghRemain  = Math.max((p.ghPlan||0) - (p.ghPicked||0), 0);
+
+    let row = `
+      <td class="mono">${barcode}</td>
+      <td class="mono">${sku}</td>
+      <td>${title}</td>
+      <td class="mono">${bin}</td>
+      <td class="mono">${p.whAvail}</td>
+    `;
+
+    if(p.toSel === 'plymouth'){
+      row += `<td class="mono">${p.plyPlan}</td>
+              <td class="mono">${p.plyPicked}</td>
+              <td class="mono">${plyRemain}</td>
+              <td>${adjustBtns('ply')}</td>`;
+    } else if(p.toSel === 'green'){
+      row += `<td class="mono">${p.ghPlan}</td>
+              <td class="mono">${p.ghPicked}</td>
+              <td class="mono">${ghRemain}</td>
+              <td>${adjustBtns('gh')}</td>`;
+    } else {
+      row += `<td class="mono">${p.plyPlan}</td>
+              <td class="mono">${p.plyPicked}</td>
+              <td class="mono">${plyRemain}</td>
+              <td class="mono">${p.ghPlan}</td>
+              <td class="mono">${p.ghPicked}</td>
+              <td class="mono">${ghRemain}</td>
+              <td>${adjustBtns('both')}</td>`;
+    }
+
+    tr.innerHTML = row;
+    tbody.appendChild(tr);
+  });
+}
+
+function setConfirmUI(on){
+  const badge = document.getElementById('confirmState');
+  const card = document.getElementById('confirmCard');
+  const destToggle = document.getElementById('destToggle');
+
+  if(on){
+    badge.textContent = 'Confirm Mode: ON';
+    badge.classList.remove('off'); badge.classList.add('on');
+    card.style.display = 'block';
+    destToggle.style.display = (meta && meta.toSelection === 'both') ? 'flex' : 'none';
+    updateConfirmMeta();
+    setTimeout(()=>document.getElementById('confirmScan').focus(), 50);
+  } else {
+    badge.textContent = 'Confirm Mode: OFF';
+    badge.classList.remove('on'); badge.classList.add('off');
+    card.style.display = 'none';
+  }
+  renderTable();
+}
+
+function updateConfirmMeta(){
+  const el = document.getElementById('confirmMeta');
+  if(!meta){ el.textContent = ''; return; }
+  el.innerHTML = `
+    <div><span class="small">FROM</span> <span class="mono">${meta.from}</span></div>
+    <div><span class="small">TO</span> <span class="mono">${meta.to}</span></div>
+    <div><span class="small">Pick</span> <span class="mono">${meta.date} ${meta.time}</span></div>
+  `;
+}
+
+function setConfirmDest(dest){
+  confirmDest = dest;
+  document.getElementById('destPLY').classList.toggle('active', dest==='plymouth');
+  document.getElementById('destGH').classList.toggle('active', dest==='green');
+  setStatusBadge('Ready to scan (' + (dest==='plymouth'?'PLY':'GH') + ')', 'badge');
+  document.getElementById('confirmScan').focus();
+}
+
+function setStatusBadge(text, kind){
+  const el = document.getElementById('scanStatus');
+  el.className = 'badge';
+  if(kind === 'ok') el.classList.add('on');
+  else if(kind === 'bad') el.classList.add('off');
+  else if(kind === 'warn') el.classList.add('warn');
+  el.textContent = text;
+}
+
+function toggleConfirmMode(){
+  if(!meta || !lastPick.length) return;
+
+  if(!confirmMode){
+    const ok = confirm(
+      'Start Confirm Mode?\n\nThis will RESET all Confirmed counts to 0.\nYou will then confirm by scanning what is physically staged.\n\nContinue?'
+    );
+    if(!ok) return;
+
+    // reset confirmed counts to 0
+    lastPick.forEach(p=>{ p.plyPicked = 0; p.ghPicked = 0; });
+    confirmMode = true;
+
+    // set initial confirm dest
+    if(meta.toSelection === 'green') setConfirmDest('green');
+    else setConfirmDest('plymouth');
+
+    setConfirmUI(true);
+    setStatusBadge('Ready to scan', 'badge');
+  } else {
+    confirmMode = false;
+    setConfirmUI(false);
+  }
+}
+
+function resetConfirmed(){
+  if(!confirmMode) return;
+  const ok = confirm('Reset confirmed counts back to 0?');
+  if(!ok) return;
+  lastPick.forEach(p=>{ p.plyPicked = 0; p.ghPicked = 0; });
+  renderTable();
+  setStatusBadge('Confirmed counts reset to 0', 'warn');
+  document.getElementById('confirmScan').focus();
+}
+
+function adjustPicked(idx, which, delta){
+  if(!confirmMode) return;
+  const p = lastPick[idx];
+  if(!p) return;
+
+  const allowOver = document.getElementById('allowOver').checked;
+
+  if(which === 'ply'){
+    const next = (p.plyPicked||0) + delta;
+    if(next < 0) return;
+    if(!allowOver && next > (p.plyPlan||0)) return;
+    p.plyPicked = next;
+  } else {
+    const next = (p.ghPicked||0) + delta;
+    if(next < 0) return;
+    if(!allowOver && next > (p.ghPlan||0)) return;
+    p.ghPicked = next;
+  }
+  renderTable();
+}
+
+function handleConfirmScan(q){
+  if(!confirmMode) return;
+
+  const now = Date.now();
+  if(q && lastConfirmScan.key === q && (now - lastConfirmScan.ts) < DUP_WINDOW_MS){
+    lastConfirmScan.ts = now;
+    return;
+  }
+  lastConfirmScan = { key:q, ts:now };
+
+  const idx = pickIndex.get(q);
+  if(idx === undefined){
+    setStatusBadge('NOT IN PICK: ' + q, 'bad');
+    return;
+  }
+
+  const p = lastPick[idx];
+  const qty = Math.max(1, Math.floor(Number(document.getElementById('scanQty').value || 1)));
+  const allowOver = document.getElementById('allowOver').checked;
+
+  // determine which destination bucket to increment
+  let bucket = 'plymouth';
+  if(meta.toSelection === 'green') bucket = 'green';
+  else if(meta.toSelection === 'plymouth') bucket = 'plymouth';
+  else bucket = confirmDest; // both
+
+  if(bucket === 'plymouth'){
+    const next = (p.plyPicked||0) + qty;
+    if(!allowOver && next > (p.plyPlan||0)){
+      setStatusBadge('OVER PICK (PLY): ' + (p.r[COL_TITLE]||''), 'warn');
+      return;
+    }
+    p.plyPicked = next;
+    setStatusBadge('OK +'+qty+' (PLY): ' + (p.r[COL_TITLE]||''), 'ok');
+  } else {
+    const next = (p.ghPicked||0) + qty;
+    if(!allowOver && next > (p.ghPlan||0)){
+      setStatusBadge('OVER PICK (GH): ' + (p.r[COL_TITLE]||''), 'warn');
+      return;
+    }
+    p.ghPicked = next;
+    setStatusBadge('OK +'+qty+' (GH): ' + (p.r[COL_TITLE]||''), 'ok');
+  }
+
+  renderTable();
+}
+
+document.getElementById('confirmScan').addEventListener('keydown', e=>{
+  if(e.key === 'Enter'){
+    const q = e.target.value.trim();
+    e.target.value = '';
+    if(!q) return;
+    handleConfirmScan(q);
+    setTimeout(()=>document.getElementById('confirmScan').focus(), 25);
+  }
+});
 
 function pickerFilename(){
   return `${meta.from}_to_${meta.to}_${meta.date}_${meta.time}_PICK.csv`;
 }
-
 function uploadFilename(dest){
   return `${meta.from}_to_${dest}_${meta.date}_${meta.time}_UPLOAD.csv`;
+}
+function downloadText(name,text){
+  const blob=new Blob([text],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function csvEscape(s){
+  s = String(s ?? '');
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
 }
 
 function downloadPickerCSV(){
@@ -212,31 +552,39 @@ function downloadPickerCSV(){
   csv+=`Generated: ${meta.date} ${meta.time}\n`;
   csv+=`Shopify Transfer #: ______________________\n\n`;
 
-  let header="Barcode,SKU,Title,WH Bin,WH Available";
-  if(meta.toSelection==='plymouth') header+=",PLY\n";
-  else if(meta.toSelection==='green') header+=",GH\n";
-  else header+=",PLY,GH\n";
-  csv+=header;
+  // Picker sheet shows PLANNED (not confirmed)
+  if(meta.toSelection==='plymouth'){
+    csv += "Barcode,SKU,Title,WH Bin,WH Available,Planned PLY\n";
+  } else if(meta.toSelection==='green'){
+    csv += "Barcode,SKU,Title,WH Bin,WH Available,Planned GH\n";
+  } else {
+    csv += "Barcode,SKU,Title,WH Bin,WH Available,Planned PLY,Planned GH\n";
+  }
 
   lastPick.forEach(p=>{
-    const sku=getSku(p.r);
-    let line=`"${p.r[COL_BARCODE]}",${sku},"${p.r[COL_TITLE]}",${p.r[COL_WH_BIN]||''},${p.wh}`;
-    if(p.to==='plymouth') line+=`,`+p.plyPick;
-    else if(p.to==='green') line+=`,`+p.ghPick;
-    else line+=`,`+p.plyPick+`,`+p.ghPick;
-    csv+=line+"\n";
+    const barcode = String(p.r[COL_BARCODE]||'').trim();
+    const sku = getSku(p.r);
+    const title = String(p.r[COL_TITLE]||'').trim();
+    const bin = String(p.r[COL_WH_BIN]||'').trim();
+
+    let line = `${csvEscape(barcode)},${csvEscape(sku)},${csvEscape(title)},${csvEscape(bin)},${p.whAvail}`;
+    if(meta.toSelection==='plymouth') line += `,${p.plyPlan}`;
+    else if(meta.toSelection==='green') line += `,${p.ghPlan}`;
+    else line += `,${p.plyPlan},${p.ghPlan}`;
+    csv += line + "\n";
   });
 
-  downloadText(pickerFilename(),csv);
+  downloadText(pickerFilename(), csv);
 }
 
 function buildUpload(dest){
+  // STRICT: sku,barcode,quantity
   let csv="sku,barcode,quantity\n";
   lastPick.forEach(p=>{
-    const sku=getSku(p.r);
-    const barcode=p.r[COL_BARCODE];
-    const qty=(dest==='plymouth')?p.plyPick:p.ghPick;
-    if(qty>0) csv+=`${sku},${barcode},${qty}\n`;
+    const sku = getSku(p.r);
+    const barcode = String(p.r[COL_BARCODE]||'').trim();
+    const qty = (dest==='plymouth') ? (p.plyPicked||0) : (p.ghPicked||0);
+    if(qty > 0) csv += `${csvEscape(sku)},${csvEscape(barcode)},${Math.floor(qty)}\n`;
   });
   return csv;
 }
@@ -244,30 +592,27 @@ function buildUpload(dest){
 function downloadShopifyCSV(){
   if(!meta) return;
 
+  if(!confirmMode){
+    const ok = confirm(
+      "You're not in Confirm Mode.\n\nShopify Upload must be based on CONFIRMED scanned counts to prevent ghost inventory.\n\nGo to Confirm (Scan) and scan staged items first.\n\nClick OK to continue anyway (NOT recommended), or Cancel."
+    );
+    if(!ok) return;
+  }
+
   if(meta.toSelection==='plymouth'){
-    downloadText(uploadFilename('PLY'),buildUpload('plymouth'));
+    downloadText(uploadFilename('PLY'), buildUpload('plymouth'));
   }
   else if(meta.toSelection==='green'){
-    downloadText(uploadFilename('GH'),buildUpload('green'));
+    downloadText(uploadFilename('GH'), buildUpload('green'));
   }
   else{
-    downloadText(uploadFilename('PLY'),buildUpload('plymouth'));
-    downloadText(uploadFilename('GH'),buildUpload('green'));
+    downloadText(uploadFilename('PLY'), buildUpload('plymouth'));
+    downloadText(uploadFilename('GH'), buildUpload('green'));
   }
 }
 
-function downloadText(name,text){
-  const blob=new Blob([text],{type:'text/csv'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;
-  a.download=name;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
+// boot
 loadCSV();
-
 </script>
 
 </body>
