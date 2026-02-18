@@ -139,13 +139,13 @@ th{background:#f1f5f9}
   <div id="pickHeader" class="pickHeader">
     <div class="title">LIVEWELL PICK SHEET</div>
     <div class="grid">
-      <div class="chip">Pick ID: <span id="ph_id"></span></div>
+      <div class="chip">Transfer #: <span id="ph_transfer"></span></div>
       <div class="chip">From: <span id="ph_from"></span></div>
       <div class="chip">To: <span id="ph_to"></span></div>
       <div class="chip">Created: <span id="ph_date"></span></div>
     </div>
     <div class="small" style="margin-top:8px">
-      Use the same Pick ID in your Shopify transfer notes/name if possible. Picker CSV includes this header block for printing.
+      Use the same Transfer # in Shopify transfer name/notes if possible. Picker CSV includes this header block for printing.
     </div>
   </div>
 
@@ -181,7 +181,7 @@ const COL_GH_MAX = 'Variant Metafield: custom.maxgh [number_integer]';
 
 let rows = [];
 let lastPick = []; // { r, whAvailable, plyPick, ghPick, to }
-let pickMeta = null; // { pickId, fromLabel, toLabel, createdAt }
+let pickMeta = null; // { transferNum, fromCode, toCode, createdAt, toSelection }
 
 /** STRICT INTEGER PARSER:
  *  - blank => 0
@@ -222,7 +222,6 @@ function renderTableHead(to){
 
 /** CSV PARSER (handles quotes + commas correctly) */
 function parseCSV(text){
-  // Normalize line endings
   text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
   const rows = [];
@@ -235,7 +234,6 @@ function parseCSV(text){
 
     if(inQuotes){
       if(c === '"'){
-        // double quote inside quoted field => literal quote
         if(text[i+1] === '"'){
           field += '"';
           i++;
@@ -254,7 +252,6 @@ function parseCSV(text){
       } else if(c === '\n'){
         row.push(field);
         field = '';
-        // Ignore totally empty trailing lines
         if(row.length > 1 || (row.length === 1 && row[0].trim() !== '')){
           rows.push(row);
         }
@@ -265,7 +262,6 @@ function parseCSV(text){
     }
   }
 
-  // last field
   row.push(field);
   if(row.length > 1 || (row.length === 1 && row[0].trim() !== '')){
     rows.push(row);
@@ -299,7 +295,6 @@ async function loadCSV(){
 
   rows = parsed.records;
 
-  // Quick sanity: if we can't find key columns, warn loudly
   const required = [COL_BARCODE, COL_TITLE, COL_WH_AV, COL_CONT_AV, COL_PLY_ON, COL_GH_ON];
   const missing = required.filter(col => !(col in (rows[0] || {})));
   if(missing.length){
@@ -311,34 +306,44 @@ async function loadCSV(){
 /** Helpers **/
 function pad2(x){ return String(x).padStart(2,'0'); }
 
-function cleanIdPart(s){
-  return String(s || '')
-    .trim()
-    .replace(/\s+/g,'')
-    .replace(/[^A-Za-z0-9_-]/g,'');
+function formatDateTime(d){
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
-function makePickId(fromLabel, toLabel){
+function getLocCode(val){
+  // User requested codes:
+  // WH for warehouse, PLY for plymouth, GH for Green Harbor, PLYMCon for plymouth container
+  if(val === 'warehouse') return 'WH';
+  if(val === 'plymouth') return 'PLY';
+  if(val === 'green') return 'GH';
+  if(val === 'container') return 'PLYMCon';
+  return String(val || '').toUpperCase();
+}
+
+function getToCode(val){
+  if(val === 'plymouth') return 'PLY';
+  if(val === 'green') return 'GH';
+  if(val === 'both') return 'BOTH';
+  return String(val || '').toUpperCase();
+}
+
+function makeTransferNumber(){
+  // Human readable "Transfer #": YYYYMMDD-HHMM
   const d = new Date();
   const yyyy = d.getFullYear();
   const mm = pad2(d.getMonth()+1);
   const dd = pad2(d.getDate());
   const hh = pad2(d.getHours());
   const mi = pad2(d.getMinutes());
-  return `${yyyy}${mm}${dd}-${hh}${mi}_${cleanIdPart(fromLabel)}-to-${cleanIdPart(toLabel)}`;
-}
-
-function formatDateTime(d){
-  // readable local time
-  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  return `${yyyy}${mm}${dd}-${hh}${mi}`;
 }
 
 function setPickHeader(meta){
   const el = document.getElementById('pickHeader');
   el.style.display = 'block';
-  document.getElementById('ph_id').textContent = meta.pickId;
-  document.getElementById('ph_from').textContent = meta.fromLabel;
-  document.getElementById('ph_to').textContent = meta.toLabel;
+  document.getElementById('ph_transfer').textContent = meta.transferNum;
+  document.getElementById('ph_from').textContent = meta.fromCode;
+  document.getElementById('ph_to').textContent = meta.toCode;
   document.getElementById('ph_date').textContent = meta.createdAt;
 }
 
@@ -382,16 +387,8 @@ function buildPick(){
   const to = document.getElementById('toLoc').value;
   const fallback = document.getElementById('fallback').checked;
 
-  const fromLabel =
-    from === 'warehouse' ? 'Warehouse-66' :
-    from === 'container' ? 'Container - PLY' :
-    from === 'green' ? 'Green Harbor' :
-    'Plymouth';
-
-  const toLabel =
-    to === 'plymouth' ? 'Plymouth' :
-    to === 'green' ? 'Green Harbor' :
-    'Both';
+  const fromCode = getLocCode(from);
+  const toCode = getToCode(to);
 
   renderTableHead(to);
 
@@ -403,7 +400,6 @@ function buildPick(){
   document.getElementById('pickHeader').style.display = 'none';
 
   rows.forEach(r=>{
-    // Skip totally blank rows
     const barcode = String(r[COL_BARCODE] || '').trim();
     const title = String(r[COL_TITLE] || '').trim();
     if(!barcode && !title) return;
@@ -411,7 +407,6 @@ function buildPick(){
     const wh = n(r[COL_WH_AV]);
     const cont = n(r[COL_CONT_AV]);
 
-    // Available from selected source (with WH->Container fallback option)
     let whAvailable = 0;
 
     if(from === 'warehouse' && fallback){
@@ -473,27 +468,28 @@ function buildPick(){
     return;
   }
 
-  // Create shared meta (used for BOTH downloads)
   const d = new Date();
   pickMeta = {
-    fromLabel,
-    toLabel,
+    transferNum: makeTransferNumber(),
+    fromCode,
+    toCode,
     createdAt: formatDateTime(d),
-    pickId: makePickId(fromLabel, toLabel)
+    toSelection: to
   };
 
   setPickHeader(pickMeta);
   enableExportButtons(true);
 }
 
-/** Filename helpers **/
-function makePickerFilename(to){
-  const dest = (to === 'plymouth') ? 'PLY' : (to === 'green') ? 'GH' : 'BOTH';
-  return `PICKER_${dest}_${pickMeta.pickId}.csv`;
+/** Human-readable filenames **/
+function pickerFilename(){
+  // Example: "WH_to_PLY_Transfer_20260218-1015_PICKER.csv"
+  return `${pickMeta.fromCode}_to_${pickMeta.toCode}_Transfer_${pickMeta.transferNum}_PICKER.csv`;
 }
-function makeShopifyFilename(destCode){
-  // destCode: PLY or GH
-  return `SHOPIFY_UPLOAD_${destCode}_${pickMeta.pickId}.csv`;
+
+function shopifyFilename(destCode){
+  // Example: "WH_to_PLY_Transfer_20260218-1015_SHOPIFY_UPLOAD.csv"
+  return `${pickMeta.fromCode}_to_${destCode}_Transfer_${pickMeta.transferNum}_SHOPIFY_UPLOAD.csv`;
 }
 
 /** Build PICKER CSV (printable header block included) */
@@ -502,10 +498,10 @@ function buildPickerCsv(){
 
   const lines = [];
 
-  // Header block for printing / matching
+  // Printable header block
   lines.push(['LIVEWELL PICK SHEET']);
-  lines.push(['Pick ID', pickMeta.pickId]);
-  lines.push(['From', pickMeta.fromLabel, 'To', pickMeta.toLabel]);
+  lines.push(['Transfer #', pickMeta.transferNum]);
+  lines.push(['From', pickMeta.fromCode, 'To', pickMeta.toCode]);
   lines.push(['Created', pickMeta.createdAt]);
   lines.push([]); // blank line
 
@@ -516,7 +512,7 @@ function buildPickerCsv(){
   else { header.push('PLY'); header.push('GH'); }
   lines.push(header);
 
-  // Data rows
+  // Data
   lastPick.forEach(p=>{
     const barcode = String(p.r[COL_BARCODE] || '').trim();
     const sku = getSku(p.r);
@@ -524,8 +520,7 @@ function buildPickerCsv(){
     const bin = String(p.r[COL_WH_BIN] || '').trim();
 
     const row = [
-      // keep barcode as text in Excel:
-      `="${barcode}"`,
+      `="${barcode}"`,  // keep leading zeros in Excel
       sku,
       title,
       bin,
@@ -542,7 +537,7 @@ function buildPickerCsv(){
   return toCsv(lines);
 }
 
-/** Build SHOPIFY UPLOAD CSV (STRICT: SKU, Barcode, Quantity) */
+/** Build SHOPIFY UPLOAD CSV (STRICT: sku, barcode, quantity) */
 function buildShopifyCsvForDest(dest){
   // dest: 'plymouth' or 'green'
   const lines = [];
@@ -555,7 +550,6 @@ function buildShopifyCsvForDest(dest){
     const qty = (dest === 'plymouth') ? p.plyPick : p.ghPick;
     if(!qty || qty <= 0) return;
 
-    // Shopify wants raw text values (no extra header/title rows)
     lines.push([sku, barcode, qty]);
   });
 
@@ -565,8 +559,7 @@ function buildShopifyCsvForDest(dest){
 /** Button actions **/
 function downloadPickerCSV(){
   if(!lastPick.length || !pickMeta) return;
-  const csv = buildPickerCsv();
-  downloadText(makePickerFilename(lastPick[0].to), csv);
+  downloadText(pickerFilename(), buildPickerCsv());
 }
 
 function downloadShopifyCSV(){
@@ -575,18 +568,13 @@ function downloadShopifyCSV(){
   const to = lastPick[0].to;
 
   if(to === 'plymouth'){
-    const csv = buildShopifyCsvForDest('plymouth');
-    downloadText(makeShopifyFilename('PLY'), csv);
+    downloadText(shopifyFilename('PLY'), buildShopifyCsvForDest('plymouth'));
   } else if(to === 'green'){
-    const csv = buildShopifyCsvForDest('green');
-    downloadText(makeShopifyFilename('GH'), csv);
+    downloadText(shopifyFilename('GH'), buildShopifyCsvForDest('green'));
   } else {
-    // TO = Both -> Shopify transfers cannot be "both" in one transfer.
-    // We output TWO files (PLY + GH) so you can create two transfers.
-    const csvPLY = buildShopifyCsvForDest('plymouth');
-    const csvGH  = buildShopifyCsvForDest('green');
-    downloadText(makeShopifyFilename('PLY'), csvPLY);
-    downloadText(makeShopifyFilename('GH'), csvGH);
+    // Both -> output TWO Shopify uploads (PLY + GH) sharing the same Transfer #
+    downloadText(shopifyFilename('PLY'), buildShopifyCsvForDest('plymouth'));
+    downloadText(shopifyFilename('GH'), buildShopifyCsvForDest('green'));
   }
 }
 
