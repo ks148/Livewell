@@ -7,98 +7,20 @@
 
 <style>
 body{font-family:system-ui;margin:20px;background:#f4f6f9}
-
-/* NAV */
-.topnav{
-  position:sticky; top:0; z-index:50;
-  background:#fff;
-  border:1px solid #e5e7eb;
-  border-radius:14px;
-  padding:10px;
-  margin-bottom:16px;
-  box-shadow:0 2px 10px rgba(0,0,0,.05);
-}
-.topnav .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-.topnav .spacer{flex:1}
-.topnav a{text-decoration:none}
-.topnav button{
-  padding:8px 14px;border-radius:10px;border:1px solid #d1d5db;
-  font-weight:700;cursor:pointer;background:#fff;
-}
-.topnav button.active{
-  background:#111827;color:#fff;border-color:#111827;
-}
-
-.card{
-  background:#fff;
-  padding:16px;
-  border-radius:14px;
-  margin-bottom:16px;
-  box-shadow:0 2px 8px rgba(0,0,0,.05)
-}
-
+.card{background:#fff;padding:16px;border-radius:14px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
 .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-
-button{
-  padding:8px 14px;
-  border-radius:10px;
-  border:1px solid #d1d5db;
-  font-weight:700;
-  cursor:pointer;
-}
-button:disabled{opacity:.5; cursor:not-allowed}
-.primary{
-  background:#2563eb;
-  color:#fff;
-  border-color:#2563eb;
-}
-
-select{
-  padding:6px 10px;
-  border-radius:8px;
-  border:1px solid #d1d5db;
-  font-weight:600;
-}
-
+button{padding:8px 14px;border-radius:10px;border:1px solid #d1d5db;font-weight:700;cursor:pointer}
+button:disabled{opacity:.5;cursor:not-allowed}
+.primary{background:#2563eb;color:#fff;border-color:#2563eb}
+select{padding:6px 10px;border-radius:8px;border:1px solid #d1d5db;font-weight:600}
 table{width:100%;border-collapse:collapse}
 th,td{padding:8px;border-bottom:1px solid #e5e7eb;text-align:left}
 th{background:#f1f5f9}
 .mono{font-family:monospace}
-.small{font-size:12px;color:#64748b;font-weight:700}
-.warn{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;padding:10px 12px;border-radius:12px;font-weight:700}
-
-/* Pick header for matching transfer <-> sheet */
-.pickHeader{
-  display:none;
-  padding:12px 14px;
-  border:2px solid #0f172a;
-  border-radius:14px;
-  background:#f8fafc;
-  margin-bottom:12px;
-}
-.pickHeader .title{font-size:18px;font-weight:900}
-.pickHeader .grid{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}
-.pickHeader .chip{
-  background:#fff;border:1px solid #e5e7eb;border-radius:12px;
-  padding:8px 10px;font-weight:800
-}
-.pickHeader .chip span{font-weight:900}
 </style>
 </head>
 
 <body>
-
-<!-- NAV (paths assume your folder is literally "Picks") -->
-<div class="topnav">
-  <div class="row">
-    <a href="../index.html"><button>🏠 Home</button></a>
-    <a href="../Picks/index.html"><button class="active">📋 Picks</button></a>
-    <a href="../putaway/index.html"><button>📦 Putaway</button></a>
-    <a href="../bin/index.html"><button>📍 Bin Lookup</button></a>
-    <div class="spacer"></div>
-    <div class="small">Ops Tools</div>
-  </div>
-</div>
 
 <h1>Picks</h1>
 
@@ -112,11 +34,6 @@ th{background:#f1f5f9}
       <option value="plymouth">Plymouth</option>
     </select>
 
-    <label>
-      <input type="checkbox" id="fallback" checked>
-      WH → Container fallback
-    </label>
-
     <label>Pick TO:</label>
     <select id="toLoc">
       <option value="plymouth">Plymouth</option>
@@ -125,29 +42,12 @@ th{background:#f1f5f9}
     </select>
 
     <button class="primary" onclick="buildPick()">Build Pick</button>
-
     <button onclick="downloadPickerCSV()" id="pickerBtn" disabled>Picker</button>
     <button onclick="downloadShopifyCSV()" id="shopifyBtn" disabled>Shopify Upload</button>
   </div>
-
-  <div id="loadMsg" style="margin-top:12px;display:none" class="warn"></div>
 </div>
 
 <div class="card">
-  <!-- Header shown on-screen so you can match pick sheet to transfer -->
-  <div id="pickHeader" class="pickHeader">
-    <div class="title">LIVEWELL PICK SHEET</div>
-    <div class="grid">
-      <div class="chip">Transfer #: <span id="ph_transfer"></span></div>
-      <div class="chip">From: <span id="ph_from"></span></div>
-      <div class="chip">To: <span id="ph_to"></span></div>
-      <div class="chip">Created: <span id="ph_date"></span></div>
-    </div>
-    <div class="small" style="margin-top:8px">
-      Picker CSV prints this header block. Shopify Upload CSV is strict: sku,barcode,quantity only.
-    </div>
-  </div>
-
   <table>
     <thead>
       <tr id="tableHead"></tr>
@@ -157,16 +57,13 @@ th{background:#f1f5f9}
 </div>
 
 <script>
-/** DATA SOURCE **/
+
 const CSV_URL = '../pickle-data.csv';
 
-/** COLUMN NAMES (must match your Shopify export headers) **/
 const COL_BARCODE = 'Variant Barcode';
 const COL_TITLE = 'Title';
 const COL_WH_BIN = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
-
-// SKU column can vary by export; we’ll try common names
-const SKU_CANDIDATES = ['Variant SKU', 'SKU', 'sku', 'variant_sku'];
+const SKU_CANDIDATES = ['Variant SKU','SKU','sku'];
 
 const COL_WH_AV = 'Inventory Available: Warehouse-66';
 const COL_CONT_AV = 'Inventory Available: Container - PLY';
@@ -179,18 +76,11 @@ const COL_GH_MIN = 'Variant Metafield: custom.mingh [number_integer]';
 const COL_GH_MAX = 'Variant Metafield: custom.maxgh [number_integer]';
 
 let rows = [];
-let lastPick = []; // { r, whAvailable, plyPick, ghPick, to }
-let pickMeta = null; // { transferNum, fromCode, toCode, createdAt, toSelection }
+let lastPick = [];
+let meta = null;
 
-/** STRICT INTEGER PARSER:
- *  - blank => 0
- *  - non-numeric => 0
- *  - decimals => floored
- */
 function n(v){
-  const s = String(v ?? '').trim();
-  if(!s) return 0;
-  const num = Number(s);
+  const num = Number(String(v ?? '').trim());
   return Number.isFinite(num) ? Math.floor(num) : 0;
 }
 
@@ -199,394 +89,185 @@ function need(on,min,max){
   return Math.max(max - on, 0);
 }
 
-/** Renders table headers based on TO selection */
-function renderTableHead(to){
-  let h = `
-    <th>Barcode</th>
-    <th>Title</th>
-    <th>WH Bin</th>
-    <th>WH Available</th>
-  `;
-
-  if(to === 'plymouth'){
-    h += `<th>PLY</th>`;
-  } else if(to === 'green'){
-    h += `<th>GH</th>`;
-  } else {
-    h += `<th>PLY</th><th>GH</th>`;
-  }
-
-  document.getElementById('tableHead').innerHTML = h;
-}
-
-/** CSV PARSER (handles quotes + commas correctly) */
-function parseCSV(text){
-  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-  const rows = [];
-  let row = [];
-  let field = '';
-  let inQuotes = false;
-
-  for(let i=0;i<text.length;i++){
-    const c = text[i];
-
-    if(inQuotes){
-      if(c === '"'){
-        if(text[i+1] === '"'){
-          field += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        field += c;
-      }
-    } else {
-      if(c === '"'){
-        inQuotes = true;
-      } else if(c === ','){
-        row.push(field);
-        field = '';
-      } else if(c === '\n'){
-        row.push(field);
-        field = '';
-        if(row.length > 1 || (row.length === 1 && row[0].trim() !== '')){
-          rows.push(row);
-        }
-        row = [];
-      } else {
-        field += c;
-      }
-    }
-  }
-
-  row.push(field);
-  if(row.length > 1 || (row.length === 1 && row[0].trim() !== '')){
-    rows.push(row);
-  }
-
-  if(!rows.length) return { headers: [], records: [] };
-
-  const headers = rows[0].map(h => String(h ?? '').trim());
-  const records = rows.slice(1).map(r => {
-    const obj = {};
-    headers.forEach((h, idx) => {
-      obj[h] = (r[idx] ?? '').trim();
-    });
-    return obj;
-  });
-
-  return { headers, records };
-}
-
-/** Load CSV */
-async function loadCSV(){
-  const msg = document.getElementById('loadMsg');
-  msg.style.display = 'none';
-  msg.textContent = '';
-
-  const res = await fetch(CSV_URL + '?v=' + Date.now(), { cache: 'no-store' });
-  if(!res.ok) throw new Error('Failed to load pickle-data.csv (HTTP ' + res.status + ')');
-
-  const text = await res.text();
-  const parsed = parseCSV(text);
-
-  rows = parsed.records;
-
-  const required = [COL_BARCODE, COL_TITLE, COL_WH_AV, COL_CONT_AV, COL_PLY_ON, COL_GH_ON];
-  const missing = required.filter(col => !(col in (rows[0] || {})));
-  if(missing.length){
-    msg.style.display = 'block';
-    msg.textContent = 'Warning: pickle-data.csv is missing expected columns. Picks may be wrong. Missing: ' + missing.join(' | ');
-  }
-}
-
-/** Helpers **/
-function pad2(x){ return String(x).padStart(2,'0'); }
-
-function formatDateTime(d){
-  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-}
-
-function getLocCode(val){
-  // User requested codes:
-  // WH for warehouse, PLY for plymouth, GH for Green Harbor, PLYMCon for plymouth container
-  if(val === 'warehouse') return 'WH';
-  if(val === 'plymouth') return 'PLY';
-  if(val === 'green') return 'GH';
-  if(val === 'container') return 'PLYMCon';
-  return String(val || '').toUpperCase();
-}
-
-function getToCode(val){
-  if(val === 'plymouth') return 'PLY';
-  if(val === 'green') return 'GH';
-  if(val === 'both') return 'BOTH';
-  return String(val || '').toUpperCase();
-}
-
-function makeTransferNumber(){
-  // Human readable "Transfer #": YYYYMMDD-HHMM
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = pad2(d.getMonth()+1);
-  const dd = pad2(d.getDate());
-  const hh = pad2(d.getHours());
-  const mi = pad2(d.getMinutes());
-  return `${yyyy}${mm}${dd}-${hh}${mi}`;
-}
-
-function setPickHeader(meta){
-  const el = document.getElementById('pickHeader');
-  el.style.display = 'block';
-  document.getElementById('ph_transfer').textContent = meta.transferNum;
-  document.getElementById('ph_from').textContent = meta.fromCode;
-  document.getElementById('ph_to').textContent = meta.toCode;
-  document.getElementById('ph_date').textContent = meta.createdAt;
-}
-
-function enableExportButtons(enabled){
-  document.getElementById('pickerBtn').disabled = !enabled;
-  document.getElementById('shopifyBtn').disabled = !enabled;
-}
-
-function getSku(rowObj){
+function getSku(row){
   for(const k of SKU_CANDIDATES){
-    if(k in rowObj){
-      const v = String(rowObj[k] || '').trim();
-      if(v) return v;
-    }
+    if(k in row && row[k]) return row[k].trim();
   }
   return '';
 }
 
-/** CSV building helpers **/
-function csvEscape(value){
-  const s = String(value ?? '');
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
+function pad(x){ return String(x).padStart(2,'0'); }
+
+function nowStamp(){
+  const d = new Date();
+  return {
+    date: `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`,
+    time: `${pad(d.getHours())}${pad(d.getMinutes())}`
+  };
 }
-function toCsv(lines){
-  return lines.map(line => line.map(csvEscape).join(',')).join('\n') + '\n';
+
+function locCode(val){
+  if(val === 'warehouse') return 'WH';
+  if(val === 'container') return 'PLYMCon';
+  if(val === 'plymouth') return 'PLY';
+  if(val === 'green') return 'GH';
+  return val.toUpperCase();
 }
-function downloadText(filename, text){
-  const blob = new Blob([text], {type:'text/csv;charset=utf-8;'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
+
+async function loadCSV(){
+  const res = await fetch(CSV_URL + '?v=' + Date.now());
+  const text = await res.text();
+  const lines = text.trim().split('\n').map(r=>r.split(','));
+  const headers = lines[0];
+  rows = lines.slice(1).map(r=>{
+    const obj={};
+    headers.forEach((h,i)=>obj[h.trim()]=r[i]?.trim());
+    return obj;
+  });
+}
+
+function renderHead(to){
+  let h = `<th>Barcode</th><th>Title</th><th>WH Bin</th><th>WH Avail</th>`;
+  if(to==='plymouth') h+=`<th>PLY</th>`;
+  else if(to==='green') h+=`<th>GH</th>`;
+  else h+=`<th>PLY</th><th>GH</th>`;
+  document.getElementById('tableHead').innerHTML = h;
+}
+
+function buildPick(){
+  const from = document.getElementById('fromLoc').value;
+  const to = document.getElementById('toLoc').value;
+
+  renderHead(to);
+  lastPick = [];
+  document.getElementById('results').innerHTML='';
+
+  rows.forEach(r=>{
+    const barcode=r[COL_BARCODE];
+    const title=r[COL_TITLE];
+    if(!barcode && !title) return;
+
+    const wh=n(r[COL_WH_AV]);
+    if(wh<=0) return;
+
+    const plyNeed=need(n(r[COL_PLY_ON]),n(r[COL_PLY_MIN]),n(r[COL_PLY_MAX]));
+    const ghNeed=need(n(r[COL_GH_ON]),n(r[COL_GH_MIN]),n(r[COL_GH_MAX]));
+
+    let plyPick=0,ghPick=0;
+    if(to==='plymouth') plyPick=Math.min(plyNeed,wh);
+    else if(to==='green') ghPick=Math.min(ghNeed,wh);
+    else{
+      plyPick=Math.min(plyNeed,wh);
+      ghPick=Math.min(ghNeed,wh-plyPick);
+    }
+
+    if(plyPick<=0 && ghPick<=0) return;
+
+    lastPick.push({r,plyPick,ghPick,to,wh});
+  });
+
+  const tbody=document.getElementById('results');
+  lastPick.forEach(p=>{
+    const tr=document.createElement('tr');
+    let row=`<td class="mono">${p.r[COL_BARCODE]}</td>
+             <td>${p.r[COL_TITLE]}</td>
+             <td>${p.r[COL_WH_BIN]||''}</td>
+             <td>${p.wh}</td>`;
+    if(p.to==='plymouth') row+=`<td>${p.plyPick}</td>`;
+    else if(p.to==='green') row+=`<td>${p.ghPick}</td>`;
+    else row+=`<td>${p.plyPick}</td><td>${p.ghPick}</td>`;
+    tr.innerHTML=row;
+    tbody.appendChild(tr);
+  });
+
+  if(!lastPick.length) return;
+
+  const stamp=nowStamp();
+  meta={
+    from:locCode(from),
+    to:locCode(to),
+    date:stamp.date,
+    time:stamp.time,
+    toSelection:to
+  };
+
+  document.getElementById('pickerBtn').disabled=false;
+  document.getElementById('shopifyBtn').disabled=false;
+}
+
+function pickerFilename(){
+  return `${meta.from}_to_${meta.to}_${meta.date}_${meta.time}_PICK.csv`;
+}
+
+function uploadFilename(dest){
+  return `${meta.from}_to_${dest}_${meta.date}_${meta.time}_UPLOAD.csv`;
+}
+
+function downloadPickerCSV(){
+  if(!meta) return;
+
+  let csv="";
+  csv+=`FROM: ${meta.from}\n`;
+  csv+=`TO: ${meta.to}\n`;
+  csv+=`Generated: ${meta.date} ${meta.time}\n`;
+  csv+=`Shopify Transfer #: ______________________\n\n`;
+
+  let header="Barcode,SKU,Title,WH Bin,WH Available";
+  if(meta.toSelection==='plymouth') header+=",PLY\n";
+  else if(meta.toSelection==='green') header+=",GH\n";
+  else header+=",PLY,GH\n";
+  csv+=header;
+
+  lastPick.forEach(p=>{
+    const sku=getSku(p.r);
+    let line=`"${p.r[COL_BARCODE]}",${sku},"${p.r[COL_TITLE]}",${p.r[COL_WH_BIN]||''},${p.wh}`;
+    if(p.to==='plymouth') line+=`,`+p.plyPick;
+    else if(p.to==='green') line+=`,`+p.ghPick;
+    else line+=`,`+p.plyPick+`,`+p.ghPick;
+    csv+=line+"\n";
+  });
+
+  downloadText(pickerFilename(),csv);
+}
+
+function buildUpload(dest){
+  let csv="sku,barcode,quantity\n";
+  lastPick.forEach(p=>{
+    const sku=getSku(p.r);
+    const barcode=p.r[COL_BARCODE];
+    const qty=(dest==='plymouth')?p.plyPick:p.ghPick;
+    if(qty>0) csv+=`${sku},${barcode},${qty}\n`;
+  });
+  return csv;
+}
+
+function downloadShopifyCSV(){
+  if(!meta) return;
+
+  if(meta.toSelection==='plymouth'){
+    downloadText(uploadFilename('PLY'),buildUpload('plymouth'));
+  }
+  else if(meta.toSelection==='green'){
+    downloadText(uploadFilename('GH'),buildUpload('green'));
+  }
+  else{
+    downloadText(uploadFilename('PLY'),buildUpload('plymouth'));
+    downloadText(uploadFilename('GH'),buildUpload('green'));
+  }
+}
+
+function downloadText(name,text){
+  const blob=new Blob([text],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=name;
   a.click();
   URL.revokeObjectURL(url);
 }
 
-/** Build pick list */
-function buildPick(){
-  const from = document.getElementById('fromLoc').value;
-  const to = document.getElementById('toLoc').value;
-  const fallback = document.getElementById('fallback').checked;
+loadCSV();
 
-  const fromCode = getLocCode(from);
-  const toCode = getToCode(to);
-
-  renderTableHead(to);
-
-  const tbody = document.getElementById('results');
-  tbody.innerHTML = '';
-  lastPick = [];
-  pickMeta = null;
-  enableExportButtons(false);
-  document.getElementById('pickHeader').style.display = 'none';
-
-  rows.forEach(r=>{
-    const barcode = String(r[COL_BARCODE] || '').trim();
-    const title = String(r[COL_TITLE] || '').trim();
-    if(!barcode && !title) return;
-
-    const wh = n(r[COL_WH_AV]);
-    const cont = n(r[COL_CONT_AV]);
-
-    let whAvailable = 0;
-
-    if(from === 'warehouse' && fallback){
-      if(wh > 0) whAvailable = wh;
-      else if(cont > 0) whAvailable = cont;
-      else return;
-    } else {
-      whAvailable =
-        (from==='warehouse') ? wh :
-        (from==='container') ? cont :
-        (from==='green') ? n(r[COL_GH_ON]) :
-        n(r[COL_PLY_ON]);
-
-      if(whAvailable <= 0) return;
-    }
-
-    const plyNeed = need(n(r[COL_PLY_ON]), n(r[COL_PLY_MIN]), n(r[COL_PLY_MAX]));
-    const ghNeed  = need(n(r[COL_GH_ON]),  n(r[COL_GH_MIN]),  n(r[COL_GH_MAX]));
-
-    let plyPick = 0;
-    let ghPick = 0;
-
-    if(to === 'plymouth'){
-      plyPick = Math.min(plyNeed, whAvailable);
-    } else if(to === 'green'){
-      ghPick = Math.min(ghNeed, whAvailable);
-    } else {
-      plyPick = Math.min(plyNeed, whAvailable);
-      ghPick  = Math.min(ghNeed,  whAvailable - plyPick);
-    }
-
-    if(plyPick <= 0 && ghPick <= 0) return;
-
-    const tr = document.createElement('tr');
-
-    let rowHTML = `
-      <td class="mono">${barcode}</td>
-      <td>${title}</td>
-      <td>${(r[COL_WH_BIN]||'')}</td>
-      <td>${whAvailable}</td>
-    `;
-
-    if(to === 'plymouth'){
-      rowHTML += `<td>${plyPick}</td>`;
-    } else if(to === 'green'){
-      rowHTML += `<td>${ghPick}</td>`;
-    } else {
-      rowHTML += `<td>${plyPick}</td><td>${ghPick}</td>`;
-    }
-
-    tr.innerHTML = rowHTML;
-    tbody.appendChild(tr);
-
-    lastPick.push({ r, whAvailable, plyPick, ghPick, to });
-  });
-
-  if(!lastPick.length){
-    enableExportButtons(false);
-    return;
-  }
-
-  const d = new Date();
-  pickMeta = {
-    transferNum: makeTransferNumber(),
-    fromCode,
-    toCode,
-    createdAt: formatDateTime(d),
-    toSelection: to
-  };
-
-  setPickHeader(pickMeta);
-  enableExportButtons(true);
-}
-
-/** Human-readable filenames **/
-function pickerFilename(){
-  // Example: "WH_to_PLY_Transfer_20260218-1015_PICKER.csv"
-  return `${pickMeta.fromCode}_to_${pickMeta.toCode}_Transfer_${pickMeta.transferNum}_PICKER.csv`;
-}
-
-function shopifyFilename(destCode){
-  // Example: "WH_to_PLY_Transfer_20260218-1015_SHOPIFY_UPLOAD.csv"
-  return `${pickMeta.fromCode}_to_${destCode}_Transfer_${pickMeta.transferNum}_SHOPIFY_UPLOAD.csv`;
-}
-
-/** Build PICKER CSV (printable header block included) */
-function buildPickerCsv(){
-  const to = lastPick[0].to;
-
-  const lines = [];
-
-  // Printable header block
-  lines.push(['LIVEWELL PICK SHEET']);
-  lines.push(['Transfer #', pickMeta.transferNum]);
-  lines.push(['From', pickMeta.fromCode, 'To', pickMeta.toCode]);
-  lines.push(['Created', pickMeta.createdAt]);
-  lines.push([]); // blank line
-
-  // Table header
-  let header = ['Barcode','SKU','Title','WH Bin','WH Available'];
-  if(to === 'plymouth') header.push('PLY');
-  else if(to === 'green') header.push('GH');
-  else { header.push('PLY'); header.push('GH'); }
-  lines.push(header);
-
-  // Data
-  lastPick.forEach(p=>{
-    const barcode = String(p.r[COL_BARCODE] || '').trim();
-    const sku = getSku(p.r);
-    const title = String(p.r[COL_TITLE] || '').trim();
-    const bin = String(p.r[COL_WH_BIN] || '').trim();
-
-    const row = [
-      `="${barcode}"`,  // keep leading zeros in Excel
-      sku,
-      title,
-      bin,
-      p.whAvailable
-    ];
-
-    if(p.to === 'plymouth') row.push(p.plyPick);
-    else if(p.to === 'green') row.push(p.ghPick);
-    else { row.push(p.plyPick); row.push(p.ghPick); }
-
-    lines.push(row);
-  });
-
-  return toCsv(lines);
-}
-
-/** Build SHOPIFY UPLOAD CSV (STRICT: sku,barcode,quantity) */
-function buildShopifyCsvForDest(dest){
-  // IMPORTANT: Shopify upload must be exactly: sku,barcode,quantity
-  let csv = "sku,barcode,quantity\n";
-
-  const esc = (s) => {
-    s = String(s ?? '');
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
-  };
-
-  lastPick.forEach(p=>{
-    const sku = (getSku(p.r) || '').trim();
-    const barcode = String(p.r[COL_BARCODE] || '').trim();
-    const qty = (dest === 'plymouth') ? p.plyPick : p.ghPick;
-
-    if(!qty || qty <= 0) return;
-
-    csv += `${esc(sku)},${esc(barcode)},${qty}\n`;
-  });
-
-  return csv;
-}
-
-/** Button actions **/
-function downloadPickerCSV(){
-  if(!lastPick.length || !pickMeta) return;
-  downloadText(pickerFilename(), buildPickerCsv());
-}
-
-function downloadShopifyCSV(){
-  if(!lastPick.length || !pickMeta) return;
-
-  const to = lastPick[0].to;
-
-  if(to === 'plymouth'){
-    downloadText(shopifyFilename('PLY'), buildShopifyCsvForDest('plymouth'));
-  } else if(to === 'green'){
-    downloadText(shopifyFilename('GH'), buildShopifyCsvForDest('green'));
-  } else {
-    // Both -> output TWO Shopify uploads (PLY + GH) sharing the same Transfer #
-    downloadText(shopifyFilename('PLY'), buildShopifyCsvForDest('plymouth'));
-    downloadText(shopifyFilename('GH'), buildShopifyCsvForDest('green'));
-  }
-}
-
-// init
-loadCSV().catch(err=>{
-  const msg = document.getElementById('loadMsg');
-  msg.style.display = 'block';
-  msg.textContent = (err && err.message) ? err.message : 'Failed to load pickle-data.csv';
-});
 </script>
 
 </body>
