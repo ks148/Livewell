@@ -58,7 +58,7 @@ th{background:#f1f5f9}
 
 <body>
 
-<!-- NAV (paths assume your folder is literally "Picks") -->
+<!-- NAV -->
 <div class="topnav">
   <div class="row">
     <a href="../index.html"><button>🏠 Home</button></a>
@@ -74,6 +74,8 @@ th{background:#f1f5f9}
 
 <div class="card">
   <div class="row">
+    <span id="csvStatus" class="badge warn">CSV: Loading…</span>
+
     <label>Pick FROM:</label>
     <select id="fromLoc">
       <option value="warehouse" selected>Warehouse-66</option>
@@ -89,7 +91,7 @@ th{background:#f1f5f9}
       <option value="both">Both</option>
     </select>
 
-    <button class="primary" onclick="buildPick()">Build Pick</button>
+    <button class="primary" onclick="buildPick()" id="buildBtn" disabled>Build Pick</button>
     <button onclick="downloadPickerCSV()" id="pickerBtn" disabled>Picker</button>
     <button class="ghost" onclick="toggleConfirmMode()" id="confirmBtn" disabled>Confirm (Scan)</button>
     <button onclick="downloadShopifyCSV()" id="shopifyBtn" disabled>Shopify Upload</button>
@@ -104,7 +106,7 @@ th{background:#f1f5f9}
       <div class="k" style="margin-bottom:6px">Confirm Pick by Barcode Scan</div>
       <div class="small">
         Scan what is physically staged to move. Counts build automatically.
-        For <span class="k">BOTH</span> picks, scans auto-allocate to the destination(s) that still need that item (based on Remaining).
+        For <span class="k">BOTH</span> picks, scans auto-allocate to the destination(s) that still need that item.
       </div>
     </div>
     <div class="small" id="confirmMeta"></div>
@@ -149,8 +151,10 @@ th{background:#f1f5f9}
 </div>
 
 <script>
+/** DATA SOURCE **/
 const CSV_URL = '../pickle-data.csv';
 
+/** COLUMN NAMES **/
 const COL_BARCODE = 'Variant Barcode';
 const COL_TITLE = 'Title';
 const COL_WH_BIN = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
@@ -166,15 +170,25 @@ const COL_GH_MIN = 'Variant Metafield: custom.mingh [number_integer]';
 const COL_GH_MAX = 'Variant Metafield: custom.maxgh [number_integer]';
 
 let rows = [];
-let lastPick = [];   // [{ r, plyPlan, ghPlan, plyPicked, ghPicked, toSel, whAvail }]
+let lastPick = [];
 let meta = null;
 
+let dataLoaded = false;
+
 let confirmMode = false;
-let pickIndex = new Map(); // barcode/sku => index in lastPick
+let pickIndex = new Map();
 
 // duplicate scan protection (scanner double-fire)
 const DUP_WINDOW_MS = 350;
 let lastConfirmScan = { key:'', ts:0 };
+
+const csvStatusEl = document.getElementById('csvStatus');
+const buildBtn = document.getElementById('buildBtn');
+
+function setCSVStatus(text, kind){
+  csvStatusEl.textContent = text;
+  csvStatusEl.className = 'badge ' + (kind || 'warn');
+}
 
 function n(v){
   const num = Number(String(v ?? '').trim());
@@ -210,21 +224,28 @@ function locCode(val){
   return String(val||'').toUpperCase();
 }
 
-// Robust CSV parser (handles commas/quotes)
+/** Robust CSV parser (handles commas + quotes) */
 function parseCSV(text){
   text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
   const out = [];
   let row = [];
   let field = '';
   let inQuotes = false;
 
+  // strip BOM
+  if(text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+
   for(let i=0;i<text.length;i++){
     const c = text[i];
+
     if(inQuotes){
       if(c === '"'){
         if(text[i+1] === '"'){ field += '"'; i++; }
         else inQuotes = false;
-      } else field += c;
+      } else {
+        field += c;
+      }
     } else {
       if(c === '"') inQuotes = true;
       else if(c === ','){ row.push(field); field=''; }
@@ -243,7 +264,8 @@ function parseCSV(text){
   const headers = out[0].map(h => String(h ?? '').trim());
   const records = out.slice(1).map(r=>{
     const obj = {};
-    headers.forEach((h, idx)=> obj[h] = (r[idx] ?? '').trim();
+    headers.forEach((h, idx)=> {
+      obj[h] = (r[idx] ?? '').trim();
     });
     return obj;
   });
@@ -251,10 +273,28 @@ function parseCSV(text){
 }
 
 async function loadCSV(){
-  const res = await fetch(CSV_URL + '?v=' + Date.now(), { cache:'no-store' });
-  const text = await res.text();
-  const parsed = parseCSV(text);
-  rows = parsed.records;
+  try{
+    setCSVStatus('CSV: Loading…', 'warn');
+    buildBtn.disabled = true;
+    dataLoaded = false;
+
+    const res = await fetch(CSV_URL + '?v=' + Date.now(), { cache:'no-store' });
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+
+    const text = await res.text();
+    const parsed = parseCSV(text);
+    rows = parsed.records || [];
+
+    dataLoaded = true;
+    buildBtn.disabled = false;
+    setCSVStatus(`CSV: Loaded (${rows.length} rows)`, 'on');
+  }catch(e){
+    rows = [];
+    dataLoaded = false;
+    buildBtn.disabled = true;
+    setCSVStatus(`CSV: FAILED (${e.message})`, 'off');
+    alert('Could not load pickle-data.csv. Check the path: ' + CSV_URL);
+  }
 }
 
 function renderHead(toSel){
@@ -271,6 +311,11 @@ function renderHead(toSel){
 }
 
 function buildPick(){
+  if(!dataLoaded){
+    alert('CSV not loaded yet. Please wait for CSV: Loaded.');
+    return;
+  }
+
   const from = document.getElementById('fromLoc').value;
   const toSel = document.getElementById('toLoc').value;
 
@@ -321,7 +366,13 @@ function buildPick(){
 
   renderTable();
 
-  if(!lastPick.length) return;
+  if(!lastPick.length){
+    document.getElementById('pickerBtn').disabled = true;
+    document.getElementById('confirmBtn').disabled = true;
+    document.getElementById('shopifyBtn').disabled = true;
+    alert('No pick lines generated (nothing below min/max or no WH availability).');
+    return;
+  }
 
   const stamp = nowStamp();
   meta = {
@@ -336,7 +387,6 @@ function buildPick(){
   document.getElementById('confirmBtn').disabled = false;
   document.getElementById('shopifyBtn').disabled = false;
 
-  // Show allocation dropdown only for BOTH
   document.getElementById('priorityWrap').style.display = (toSel === 'both') ? 'flex' : 'none';
 }
 
@@ -486,7 +536,6 @@ function adjustPicked(idx, which, delta){
   renderTable();
 }
 
-// AUTO-ALLOCATE for BOTH (supports spillover with Scan Qty)
 function allocateBoth(p, qty){
   const allowOver = document.getElementById('allowOver').checked;
   const pref = document.getElementById('allocPriority')?.value || 'ply_first';
@@ -632,7 +681,6 @@ function downloadPickerCSV(){
   csv+=`Generated: ${meta.date} ${meta.time}\n`;
   csv+=`Shopify Transfer #: ______________________\n\n`;
 
-  // Picker sheet shows PLANNED counts
   if(meta.toSelection==='plymouth'){
     csv += "Barcode,SKU,Title,WH Bin,WH Available,Planned PLY\n";
   } else if(meta.toSelection==='green'){
@@ -658,7 +706,6 @@ function downloadPickerCSV(){
 }
 
 function buildUpload(dest){
-  // STRICT: sku,barcode,quantity  (CONFIRMED counts)
   let csv="sku,barcode,quantity\n";
   lastPick.forEach(p=>{
     const sku = getSku(p.r);
@@ -672,7 +719,7 @@ function buildUpload(dest){
 function downloadShopifyCSV(){
   if(!meta) return;
 
-  // NEW: Safe behavior — if not in Confirm Mode, OK starts Confirm Mode and returns (no upload)
+  // Safe behavior: if not in Confirm Mode, OK starts Confirm Mode and returns (no upload)
   if(!confirmMode){
     const ok = confirm(
       "Shopify Upload requires Confirm Mode.\n\n" +
@@ -690,7 +737,7 @@ function downloadShopifyCSV(){
     setStatusBadge('Confirm Mode started — scan staged items now', 'warn');
     setTimeout(()=>document.getElementById('confirmScan').focus(), 50);
 
-    return; // IMPORTANT: do not generate upload yet
+    return;
   }
 
   if(meta.toSelection==='plymouth'){
@@ -709,7 +756,7 @@ function downloadShopifyCSV(){
   }
 }
 
-// boot
+/** boot */
 loadCSV();
 </script>
 
