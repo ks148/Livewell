@@ -88,6 +88,10 @@
 
   .binBig{font-size:56px;font-weight:1000;margin:6px 0 0;letter-spacing:1px}
   code{background:#f3f4f6;padding:2px 6px;border-radius:8px}
+
+  .kv{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .kv .pill{border:1px solid var(--line);background:#fff;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:900;color:#0f172a}
+  .muted{color:var(--muted)}
 </style>
 </head>
 
@@ -109,7 +113,7 @@
   <h1>Bin</h1>
   <p class="sub">
     This page has <strong>two separate tools</strong>:
-    <strong>Bin Assignment</strong> (build CSV exports) and <strong>Bin Lookup</strong> (quick lookup only).
+    <strong>Bin Assignment</strong> (build CSV exports) and <strong>Smart Bin Lookup</strong> (scan bin or product).
     Data source: <code>pickle-data.csv</code>.
   </p>
 
@@ -192,19 +196,20 @@
   </div>
 
   <!-- =======================
-       SECTION 2: BIN LOOKUP
+       SECTION 2: SMART BIN LOOKUP
        ======================= -->
   <div class="card">
     <div class="sectionTitle">
       <div class="left">
-        <h2>2) BIN LOOKUP (Scan → Result)</h2>
+        <h2>2) SMART BIN LOOKUP (Scan BIN or PRODUCT)</h2>
         <div class="sub">
-          ✅ Shows what the system says (bin, title, sku, etc.). Adds to a scan log.
-          <strong>Does NOT</strong> add to the assignment table and exports nothing.
+          ✅ Scan a <strong>BIN</strong> to see what should be in it. Scan a <strong>PRODUCT</strong> to see what bin it should be in.
+          <strong>Does NOT</strong> add to assignment exports.
         </div>
       </div>
       <div class="right">
         <span id="lookupStatus" class="tag warn">Loading…</span>
+        <span id="modeBadge" class="tag warn">MODE: —</span>
       </div>
     </div>
 
@@ -219,14 +224,14 @@
     </div>
 
     <div style="margin-top:12px">
-      <div class="small">Lookup scan (barcode or SKU)</div>
-      <input id="scan" class="big" placeholder="Scan barcode or SKU and press Enter" />
+      <div class="small">Scan BIN label (bin code) OR scan product (barcode/SKU) then Enter</div>
+      <input id="scan" class="big" placeholder="Scan BIN or product barcode/SKU and press Enter" />
       <div id="result" style="margin-top:12px"></div>
     </div>
 
     <div style="margin-top:14px; overflow:auto; max-height:50vh">
       <table>
-        <thead><tr><th>Time</th><th>Bin</th><th>Barcode</th><th>Title</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Time</th><th>Type</th><th>Bin</th><th>Barcode</th><th>Title</th><th>Actions</th></tr></thead>
         <tbody id="log"></tbody>
       </table>
     </div>
@@ -242,6 +247,9 @@
   const COL_SKU = 'Variant SKU';
   const COL_TITLE = 'Title';
   const COL_BIN = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
+
+  // Optional: Warehouse on-hand column (will auto-detect if exact match exists)
+  const COL_WH_ONHAND = 'Inventory Available: Warehouse-66';
 
   // Variant ID candidates
   const VARIANT_ID_CANDIDATES = [
@@ -265,6 +273,7 @@
   const scanCountEl = document.getElementById('scanCount');
 
   const lookupStatusEl = document.getElementById('lookupStatus');
+  const modeBadgeEl = document.getElementById('modeBadge');
 
   const assignStatusEl = document.getElementById('assignStatus');
   const assignHintEl = document.getElementById('assignHint');
@@ -288,6 +297,13 @@
   function setTag(el, kind, text){
     el.className = 'tag ' + (kind || 'warn');
     el.textContent = text;
+  }
+
+  function nInt(v){
+    const s = String(v ?? '').trim();
+    if(!s) return 0;
+    const num = Number(s);
+    return Number.isFinite(num) ? Math.floor(num) : 0;
   }
 
   // CSV parsing
@@ -349,6 +365,7 @@
   async function loadCSV(){
     setTag(assignStatusEl, 'warn', 'Loading…');
     setTag(lookupStatusEl, 'warn', 'Loading…');
+    setTag(modeBadgeEl, 'warn', 'MODE: —');
     metaEl.innerHTML = '';
     try{
       const url = CSV_URL + '?v=' + Date.now();
@@ -362,17 +379,20 @@
       const delim = detectDelimiter(text);
       rows = toObjects(parseCSV(text, delim));
 
+      const sample = rows[0] || {};
+      const hasVID = VARIANT_ID_CANDIDATES.some(k => k in sample);
+      const hasBarcode = (COL_BARCODE in sample);
+
+      const hasWH = (COL_WH_ONHAND in sample);
+
       metaEl.innerHTML = `
         <div><strong>CSV file:</strong> <code>${esc(CSV_URL)}</code></div>
         <div><strong>CSV Last Updated (server):</strong> ${lastModified ? esc(new Date(lastModified).toLocaleString()) : '<span style="color:#7f1d1d;">Unknown</span>'}</div>
         <div><strong>Loaded at:</strong> ${esc(new Date().toLocaleString())}</div>
         ${etag ? `<div><strong>ETag:</strong> <code class="mono">${esc(etag)}</code></div>` : ''}
         <div><strong>Rows:</strong> ${rows.length}</div>
+        <div><strong>WH On-hand column:</strong> ${hasWH ? '<span class="tag good">Found</span>' : '<span class="tag warn">Not found</span>'} <span class="muted">(uses <span class="mono">${esc(COL_WH_ONHAND)}</span> if present)</span></div>
       `;
-
-      const sample = rows[0] || {};
-      const hasVID = VARIANT_ID_CANDIDATES.some(k => k in sample);
-      const hasBarcode = (COL_BARCODE in sample);
 
       if(!hasVID){
         setTag(assignStatusEl,'bad','Missing Variant ID');
@@ -382,7 +402,6 @@
         setTag(assignStatusEl,'good','Ready');
       }
       setTag(lookupStatusEl,'good','Loaded');
-
       assignHintEl.innerHTML = `<span class="sub">Scan item → scan bin → done</span>`;
     }catch(e){
       rows = [];
@@ -394,7 +413,7 @@
 
   function openCSV(){ window.open(CSV_URL, '_blank', 'noopener'); }
 
-  // ========= LOOKUP =========
+  // ========= SMART LOOKUP =========
   function renderLog(){
     scanCountEl.textContent = String(logEntries.length);
     logEl.innerHTML = '';
@@ -403,6 +422,7 @@
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${esc(new Date(e.ts).toLocaleTimeString())}</td>
+        <td><span class="mono">${esc(e.type||'')}</span></td>
         <td class="mono">${esc(e.bin||'')}</td>
         <td class="mono">${esc(e.barcode||'')}</td>
         <td>${esc(e.title||'')}</td>
@@ -418,24 +438,100 @@
   function clearLog(){ logEntries = []; renderLog(); }
   function undoLastScan(){ if(!logEntries.length) return; logEntries.shift(); renderLog(); }
 
-  function showResult(match){
+  function showProductResult(match){
     const vid = getVariantId(match) || '';
+    const bin = match[COL_BIN] || '—';
+    const wh = (COL_WH_ONHAND in match) ? nInt(match[COL_WH_ONHAND]) : null;
+
+    setTag(modeBadgeEl, 'good', 'MODE: PRODUCT');
+
     resultEl.innerHTML = `
-      <div class="binBig">${esc(match[COL_BIN]||'—')}</div>
+      <div class="binBig">${esc(bin)}</div>
       <div style="font-weight:1000;margin-top:4px">${esc(match[COL_TITLE]||'')}</div>
-      <div class="sub" style="margin-top:6px">
-        <strong>Barcode:</strong> <span class="mono">${esc(match[COL_BARCODE]||'')}</span>
-        &nbsp; | &nbsp;
-        <strong>SKU:</strong> <span class="mono">${esc(match[COL_SKU]||'')}</span>
-        &nbsp; | &nbsp;
-        <strong>Variant ID:</strong> <span class="mono">${esc(vid)}</span>
+
+      <div class="kv">
+        <div class="pill"><strong>Barcode:</strong> <span class="mono">${esc(match[COL_BARCODE]||'')}</span></div>
+        <div class="pill"><strong>SKU:</strong> <span class="mono">${esc(match[COL_SKU]||'')}</span></div>
+        <div class="pill"><strong>Variant ID:</strong> <span class="mono">${esc(vid)}</span></div>
+        ${wh !== null ? `<div class="pill"><strong>WH On Hand:</strong> <span class="mono">${esc(wh)}</span></div>` : ``}
+      </div>
+
+      <div class="sub" style="margin-top:10px">
+        <strong>Meaning:</strong> This product should be in bin <span class="mono">${esc(bin)}</span>.
       </div>
     `;
   }
 
-  function lookup(q){
+  function showBinResult(binCode, matches){
+    setTag(modeBadgeEl, 'warn', 'MODE: BIN');
+
+    // sort for readability: bin then title
+    const list = [...matches].sort((a,b)=>{
+      const ta = (a[COL_TITLE]||'').toLowerCase();
+      const tb = (b[COL_TITLE]||'').toLowerCase();
+      return ta.localeCompare(tb);
+    });
+
+    const hasWH = list.length ? (COL_WH_ONHAND in list[0]) : false;
+    let totalWH = 0;
+    if(hasWH){
+      list.forEach(r=> totalWH += nInt(r[COL_WH_ONHAND]));
+    }
+
+    let html = `
+      <div class="binBig">${esc(binCode)}</div>
+      <div class="sub" style="margin-top:6px">
+        <strong>Meaning:</strong> These are the items the system says are assigned to this bin.
+      </div>
+      <div class="kv">
+        <div class="pill"><strong>Items:</strong> <span class="mono">${esc(list.length)}</span></div>
+        ${hasWH ? `<div class="pill"><strong>Total WH On Hand:</strong> <span class="mono">${esc(totalWH)}</span></div>` : ``}
+      </div>
+
+      <div style="margin-top:12px; overflow:auto; max-height:45vh">
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>SKU</th>
+              <th>Item Barcode</th>
+              <th>Variant ID</th>
+              ${hasWH ? `<th>WH On Hand</th>` : ``}
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    for(const r of list){
+      const vid = getVariantId(r) || '';
+      const wh = hasWH ? nInt(r[COL_WH_ONHAND]) : '';
+      html += `
+        <tr>
+          <td>${esc(r[COL_TITLE]||'')}</td>
+          <td class="mono">${esc(r[COL_SKU]||'')}</td>
+          <td class="mono">${esc(r[COL_BARCODE]||'')}</td>
+          <td class="mono">${esc(vid)}</td>
+          ${hasWH ? `<td class="mono">${esc(wh)}</td>` : ``}
+        </tr>
+      `;
+    }
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+      <div class="sub" style="margin-top:10px">
+        <strong>Next step for mismatch capture (manual):</strong> if you scan a BIN and physically see items that are not in this list, those are “wrong-bin” candidates.
+      </div>
+    `;
+
+    resultEl.innerHTML = html;
+  }
+
+  function smartLookup(q){
     if(!rows.length){
       resultEl.innerHTML = `<span class="tag bad">Not ready</span> <span class="sub">Load the CSV first.</span>`;
+      setTag(modeBadgeEl, 'warn', 'MODE: —');
       return;
     }
 
@@ -446,20 +542,38 @@
     }
     lastScan = { key:q, ts:now };
 
+    // 1) BIN MODE if any row has this exact bin
+    const binMatches = rows.filter(r => (r[COL_BIN] || '').trim() === q);
+    if(binMatches.length){
+      showBinResult(q, binMatches);
+      logEntries.unshift({
+        ts: now,
+        type: 'BIN',
+        bin: q,
+        barcode: '',
+        title: `${binMatches.length} items`
+      });
+      renderLog();
+      return;
+    }
+
+    // 2) PRODUCT MODE (barcode or sku)
     const m = rows.find(r =>
       (r[COL_BARCODE] && r[COL_BARCODE]===q) ||
       (r[COL_SKU] && r[COL_SKU]===q)
     );
 
     if(!m){
-      resultEl.innerHTML = `<span class="tag bad">Not found</span> <span class="sub">Try scanning barcode or SKU again.</span>`;
+      setTag(modeBadgeEl, 'bad', 'MODE: NOT FOUND');
+      resultEl.innerHTML = `<span class="tag bad">Not found</span> <span class="sub">Scan a BIN code, barcode, or SKU again.</span>`;
       return;
     }
 
-    showResult(m);
+    showProductResult(m);
 
     logEntries.unshift({
       ts: now,
+      type: 'PRODUCT',
       bin: m[COL_BIN] || '',
       barcode: m[COL_BARCODE] || '',
       title: m[COL_TITLE] || ''
@@ -471,7 +585,7 @@
     if(e.key==='Enter'){
       const q = e.target.value.trim();
       e.target.value='';
-      lookup(q);
+      smartLookup(q);
       setTimeout(()=>document.getElementById('scan').focus(), 50);
     }
   });
@@ -657,12 +771,12 @@
     assignments.forEach(a=>{
       const bin = (a.bin || '').trim();
 
-      // BIN label only if bin exists (otherwise you can't print a bin label)
+      // BIN label only if bin exists
       if(bin){
         csv += `BIN,${csvEscape(bin)},${csvEscape('WH')},${csvEscape(bin)}\n`;
       }
 
-      // ITEM label always prints
+      // ITEM label
       const title = a.title || '';
       const skuPart = a.sku ? `SKU: ${a.sku}` : '';
       const binPart = bin ? `Bin: ${bin}` : 'Bin: (blank)';
@@ -674,7 +788,7 @@
     downloadText(makeFilename('LABEL_PRINT'), csv);
   }
 
-  // Export C: Raw assignment CSV (helpful for Excel sequencing)
+  // Export C: Raw assignment CSV
   function downloadAssignmentsRawCSV(){
     if(!assignments.length) return;
 
