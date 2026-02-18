@@ -115,6 +115,7 @@
     This page has <strong>two separate tools</strong>:
     <strong>Bin Assignment</strong> (build CSV exports) and <strong>Smart Bin Lookup</strong> (scan bin or product).
     Data source: <code>pickle-data.csv</code>.
+    <br><strong>Draft saving:</strong> this page auto-saves your progress so switching tools / refresh / closing the tab won’t lose work.
   </p>
 
   <!-- =======================
@@ -133,6 +134,16 @@
         <span id="assignStatus" class="tag warn">Loading…</span>
         <span id="assignHint" class="sub"></span>
       </div>
+    </div>
+
+    <!-- Draft controls -->
+    <div class="row" style="margin:2px 0 10px">
+      <button class="btn" type="button" onclick="draftSaveNow()">Save Draft</button>
+      <button class="btn" type="button" onclick="draftLoadNow()">Load Draft</button>
+      <button class="btn" type="button" onclick="draftExport()">Export Draft (JSON)</button>
+      <button class="btn" type="button" onclick="draftImport()">Import Draft (JSON)</button>
+      <button class="btn btnDanger" type="button" onclick="draftClear()">Clear Draft</button>
+      <span id="draftStatus" class="sub"></span>
     </div>
 
     <div class="sub" style="margin-top:0">
@@ -265,6 +276,158 @@
 
   // assignments in scan order
   let assignments = []; // {variantId, itemBarcode, sku, title, bin}
+
+  // ===============================
+  // LIVEWELL STATE KIT (v1) - BIN
+  // ===============================
+  const STATE_KEY = 'livewell:bin:v1';
+  const STATE_VERSION = 1;
+  const draftStatusEl = document.getElementById('draftStatus');
+  let _saveTimer = null;
+  let _didAutoRestore = false;
+
+  function nowISO(){ return new Date().toISOString(); }
+
+  function saveDraft(key, stateObj){
+    const payload = { _meta:{ version: STATE_VERSION, savedAt: nowISO() }, state: stateObj };
+    localStorage.setItem(key, JSON.stringify(payload));
+  }
+
+  function loadDraft(key){
+    const raw = localStorage.getItem(key);
+    if(!raw) return null;
+    try{
+      const payload = JSON.parse(raw);
+      if(!payload || !payload.state) return null;
+      return payload;
+    }catch{ return null; }
+  }
+
+  function clearDraft(key){ localStorage.removeItem(key); }
+
+  function setDraftStatus(msg){ if(draftStatusEl) draftStatusEl.textContent = msg || ''; }
+
+  function downloadJSON(filename, obj){
+    const text = JSON.stringify(obj, null, 2);
+    const blob = new Blob([text], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function pickFile(accept){
+    return new Promise((resolve)=>{
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = accept || '.json,application/json';
+      input.onchange = () => resolve(input.files?.[0] || null);
+      input.click();
+    });
+  }
+
+  async function loadJSONFile(){
+    const file = await pickFile('.json,application/json');
+    if(!file) return null;
+    const text = await file.text();
+    return JSON.parse(text);
+  }
+
+  function scheduleSave(delayMs=150){
+    clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(()=> {
+      try{
+        saveDraft(STATE_KEY, getState());
+        setDraftStatus(`Auto-saved ${new Date().toLocaleTimeString()}`);
+      }catch{}
+    }, delayMs);
+  }
+
+  function getState(){
+    return {
+      assignments: assignments.map(a => ({...a})),
+      logEntries: logEntries.map(e => ({...e})),
+      lastScan: {...lastScan},
+      ui: {
+        assignScan: document.getElementById('assignScan')?.value || '',
+        assignBin: document.getElementById('assignBin')?.value || '',
+        scan: document.getElementById('scan')?.value || '',
+        modeBadge: document.getElementById('modeBadge')?.textContent || ''
+      }
+    };
+  }
+
+  function applyState(st){
+    assignments = Array.isArray(st.assignments) ? st.assignments.map(x=>({...x})) : [];
+    logEntries = Array.isArray(st.logEntries) ? st.logEntries.map(x=>({...x})) : [];
+    lastScan = st.lastScan ? {...st.lastScan} : { key:'', ts:0 };
+
+    // restore input fields
+    const ui = st.ui || {};
+    const setVal = (id, val)=>{ const el = document.getElementById(id); if(el) el.value = val ?? ''; };
+    setVal('assignScan', ui.assignScan);
+    setVal('assignBin', ui.assignBin);
+    setVal('scan', ui.scan);
+
+    // rebuild UI tables
+    renderAssignments();
+    renderLog();
+
+    // keep status clean
+    if(assignments.length){
+      setTag(assignStatusEl,'good','Ready');
+    }
+  }
+
+  function autoRestoreDraftOnce(){
+    if(_didAutoRestore) return;
+    _didAutoRestore = true;
+    const payload = loadDraft(STATE_KEY);
+    if(payload?.state){
+      applyState(payload.state);
+      setDraftStatus(`Restored draft (${new Date(payload._meta?.savedAt || Date.now()).toLocaleString()})`);
+    } else {
+      setDraftStatus('No saved draft (yet)');
+    }
+  }
+
+  function draftSaveNow(){
+    saveDraft(STATE_KEY, getState());
+    setDraftStatus(`Saved ${new Date().toLocaleTimeString()}`);
+  }
+
+  function draftLoadNow(){
+    const payload = loadDraft(STATE_KEY);
+    if(!payload){ setDraftStatus('No draft found'); return; }
+    applyState(payload.state);
+    setDraftStatus(`Loaded draft (${new Date(payload._meta?.savedAt || Date.now()).toLocaleString()})`);
+  }
+
+  function draftClear(){
+    if(!confirm('Clear saved draft for Bin?')) return;
+    clearDraft(STATE_KEY);
+    setDraftStatus('Draft cleared');
+  }
+
+  function draftExport(){
+    const payload = { _exportedAt: nowISO(), key: STATE_KEY, state: getState() };
+    downloadJSON(`LIVEWELL_BIN_DRAFT_${new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')}.json`, payload);
+    setDraftStatus('Exported JSON');
+  }
+
+  async function draftImport(){
+    try{
+      const obj = await loadJSONFile();
+      const st = obj?.state || obj; // supports wrapper or raw
+      applyState(st);
+      saveDraft(STATE_KEY, getState());
+      setDraftStatus('Imported + saved');
+    }catch{
+      alert('Could not import JSON draft.');
+    }
+  }
 
   // Elements
   const metaEl = document.getElementById('meta');
@@ -403,6 +566,10 @@
       }
       setTag(lookupStatusEl,'good','Loaded');
       assignHintEl.innerHTML = `<span class="sub">Scan item → scan bin → done</span>`;
+
+      // auto-restore after CSV loads (so UI is ready)
+      autoRestoreDraftOnce();
+
     }catch(e){
       rows = [];
       setTag(assignStatusEl,'bad','CSV load failed');
@@ -430,13 +597,23 @@
       `;
       tr.querySelector('button').addEventListener('click', (ev)=>{
         const idx = Number(ev.currentTarget.getAttribute('data-i'));
-        if(Number.isFinite(idx)) { logEntries.splice(idx,1); renderLog(); }
+        if(Number.isFinite(idx)) { logEntries.splice(idx,1); renderLog(); scheduleSave(); }
       });
       logEl.appendChild(tr);
     }
+    scheduleSave();
   }
-  function clearLog(){ logEntries = []; renderLog(); }
-  function undoLastScan(){ if(!logEntries.length) return; logEntries.shift(); renderLog(); }
+  function clearLog(){
+    if(!logEntries.length) return;
+    if(!confirm('Clear the lookup scan log?')) return;
+    logEntries = [];
+    renderLog();
+  }
+  function undoLastScan(){
+    if(!logEntries.length) return;
+    logEntries.shift();
+    renderLog();
+  }
 
   function showProductResult(match){
     const vid = getVariantId(match) || '';
@@ -465,7 +642,6 @@
   function showBinResult(binCode, matches){
     setTag(modeBadgeEl, 'warn', 'MODE: BIN');
 
-    // sort for readability: bin then title
     const list = [...matches].sort((a,b)=>{
       const ta = (a[COL_TITLE]||'').toLowerCase();
       const tb = (b[COL_TITLE]||'').toLowerCase();
@@ -566,6 +742,7 @@
     if(!m){
       setTag(modeBadgeEl, 'bad', 'MODE: NOT FOUND');
       resultEl.innerHTML = `<span class="tag bad">Not found</span> <span class="sub">Scan a BIN code, barcode, or SKU again.</span>`;
+      scheduleSave();
       return;
     }
 
@@ -587,6 +764,7 @@
       e.target.value='';
       smartLookup(q);
       setTimeout(()=>document.getElementById('scan').focus(), 50);
+      scheduleSave();
     }
   });
 
@@ -622,11 +800,12 @@
         const idx = Number(ev.currentTarget.getAttribute('data-i'));
         if(!Number.isFinite(idx)) return;
         assignments[idx].bin = ev.currentTarget.value;
+        scheduleSave();
       });
 
       tr.querySelector('button').addEventListener('click', (ev)=>{
         const idx = Number(ev.currentTarget.getAttribute('data-i'));
-        if(Number.isFinite(idx)) { assignments.splice(idx,1); renderAssignments(); }
+        if(Number.isFinite(idx)) { assignments.splice(idx,1); renderAssignments(); scheduleSave(); }
       });
 
       assignTableEl.appendChild(tr);
@@ -639,6 +818,8 @@
     } else {
       assignPreviewEl.textContent = '';
     }
+
+    scheduleSave();
   }
 
   function addAssignmentCore(scanVal, binVal){
@@ -664,6 +845,7 @@
 
     setTag(assignStatusEl,'good','Ready');
     renderAssignments();
+    scheduleSave();
     return true;
   }
 
@@ -676,6 +858,7 @@
     assignScanEl.value = '';
     assignBinEl.value = '';
     assignScanEl.focus();
+    scheduleSave();
   }
 
   // Fast flow: item Enter -> if bin empty, focus bin; else add
@@ -687,6 +870,7 @@
       if(!assignBinEl.value.trim()){
         e.preventDefault();
         assignBinEl.focus();
+        scheduleSave();
         return;
       }
 
@@ -697,6 +881,7 @@
       assignScanEl.value = '';
       assignBinEl.value = '';
       assignScanEl.focus();
+      scheduleSave();
     }
   });
 
@@ -712,6 +897,7 @@
       assignScanEl.value = '';
       assignBinEl.value = '';
       assignScanEl.focus();
+      scheduleSave();
     }
   });
 
@@ -723,6 +909,7 @@
     assignScanEl.value = '';
     assignBinEl.value = '';
     assignScanEl.focus();
+    scheduleSave();
   }
 
   function csvEscape(s){
