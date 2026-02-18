@@ -7,22 +7,48 @@
 
 <style>
 body{font-family:system-ui;margin:20px;background:#f4f6f9}
+
+/* NAV */
+.topnav{
+  position:sticky; top:0; z-index:50;
+  background:#fff;
+  border:1px solid #e5e7eb;
+  border-radius:14px;
+  padding:10px;
+  margin-bottom:16px;
+  box-shadow:0 2px 10px rgba(0,0,0,.05);
+}
+.topnav .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.topnav .spacer{flex:1}
+.topnav a{text-decoration:none}
+.topnav button{
+  padding:8px 14px;border-radius:10px;border:1px solid #d1d5db;
+  font-weight:700;cursor:pointer;background:#fff;
+}
+.topnav button.active{
+  background:#111827;color:#fff;border-color:#111827;
+}
+
 .card{background:#fff;padding:16px;border-radius:14px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
 .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+
 button{padding:8px 14px;border-radius:10px;border:1px solid #d1d5db;font-weight:700;cursor:pointer;background:#fff}
 button:disabled{opacity:.5;cursor:not-allowed}
 .primary{background:#2563eb;color:#fff;border-color:#2563eb}
 .ghost{background:#0f172a;color:#fff;border-color:#0f172a}
+
 select,input[type="number"]{padding:6px 10px;border-radius:8px;border:1px solid #d1d5db;font-weight:600}
 table{width:100%;border-collapse:collapse}
 th,td{padding:8px;border-bottom:1px solid #e5e7eb;text-align:left;vertical-align:middle}
 th{background:#f1f5f9}
 .mono{font-family:monospace}
 .small{font-size:12px;color:#64748b;font-weight:700}
+
 .badge{display:inline-block;padding:4px 10px;border-radius:999px;font-weight:800;font-size:12px;border:1px solid #e5e7eb;background:#f8fafc}
 .badge.on{background:#dcfce7;border-color:#86efac;color:#166534}
 .badge.off{background:#fee2e2;border-color:#fecaca;color:#7f1d1d}
 .badge.warn{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
+
 .scanbox{font-size:22px;padding:10px 12px;width:320px;max-width:100%;border-radius:10px;border:1px solid #cbd5e1}
 .k{font-weight:900}
 .miniBtn{padding:6px 10px;border-radius:10px;border:1px solid #d1d5db;font-weight:900;cursor:pointer;background:#fff}
@@ -31,6 +57,18 @@ th{background:#f1f5f9}
 </head>
 
 <body>
+
+<!-- NAV (paths assume your folder is literally "Picks") -->
+<div class="topnav">
+  <div class="row">
+    <a href="../index.html"><button>🏠 Home</button></a>
+    <a href="../Picks/index.html"><button class="active">📋 Picks</button></a>
+    <a href="../putaway/index.html"><button>📦 Putaway</button></a>
+    <a href="../bin/index.html"><button>📍 Bin Lookup</button></a>
+    <div class="spacer"></div>
+    <div class="small">Ops Tools</div>
+  </div>
+</div>
 
 <h1>Picks</h1>
 
@@ -65,8 +103,8 @@ th{background:#f1f5f9}
     <div>
       <div class="k" style="margin-bottom:6px">Confirm Pick by Barcode Scan</div>
       <div class="small">
-        Scan items that are physically staged to move. Counts build automatically.
-        For <span class="k">BOTH</span> picks, scans are auto-allocated to the destination(s) that still need that item (based on Remaining).
+        Scan what is physically staged to move. Counts build automatically.
+        For <span class="k">BOTH</span> picks, scans auto-allocate to the destination(s) that still need that item (based on Remaining).
       </div>
     </div>
     <div class="small" id="confirmMeta"></div>
@@ -80,13 +118,13 @@ th{background:#f1f5f9}
       <input id="scanQty" type="number" min="1" step="1" value="1" style="width:90px">
     </label>
 
-    <label class="row" style="gap:8px" id="priorityWrap" style="display:none">
+    <span id="priorityWrap" class="row" style="gap:8px;display:none">
       <span class="small">Allocation</span>
       <select id="allocPriority">
         <option value="ply_first" selected>Fill PLY then GH</option>
         <option value="gh_first">Fill GH then PLY</option>
       </select>
-    </label>
+    </span>
 
     <label class="row" style="gap:8px">
       <input type="checkbox" id="allowOver" />
@@ -116,7 +154,7 @@ const CSV_URL = '../pickle-data.csv';
 const COL_BARCODE = 'Variant Barcode';
 const COL_TITLE = 'Title';
 const COL_WH_BIN = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
-const SKU_CANDIDATES = ['Variant SKU','SKU','sku'];
+const SKU_CANDIDATES = ['Variant SKU','SKU','sku','variant_sku'];
 
 const COL_WH_AV = 'Inventory Available: Warehouse-66';
 const COL_PLY_ON = 'Inventory Available: Plymouth';
@@ -148,7 +186,10 @@ function need(on,min,max){
 }
 function getSku(row){
   for(const k of SKU_CANDIDATES){
-    if(k in row && row[k]) return row[k].trim();
+    if(k in row && row[k]){
+      const v = String(row[k]||'').trim();
+      if(v) return v;
+    }
   }
   return '';
 }
@@ -169,7 +210,7 @@ function locCode(val){
   return String(val||'').toUpperCase();
 }
 
-// Robust CSV parser
+// Robust CSV parser (handles commas/quotes)
 function parseCSV(text){
   text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   const out = [];
@@ -202,7 +243,8 @@ function parseCSV(text){
   const headers = out[0].map(h => String(h ?? '').trim());
   const records = out.slice(1).map(r=>{
     const obj = {};
-    headers.forEach((h, idx)=> obj[h] = (r[idx] ?? '').trim());
+    headers.forEach((h, idx)=> obj[h] = (r[idx] ?? '').trim();
+    });
     return obj;
   });
   return { headers, records };
@@ -452,11 +494,12 @@ function allocateBoth(p, qty){
   let remainingPLY = Math.max((p.plyPlan||0) - (p.plyPicked||0), 0);
   let remainingGH  = Math.max((p.ghPlan||0) - (p.ghPicked||0), 0);
 
-  let addPLY = 0, addGH = 0;
   let left = qty;
+  let addPLY = 0, addGH = 0;
 
   const take = (bucket)=>{
     if(left <= 0) return;
+
     if(bucket === 'ply'){
       const can = allowOver ? left : Math.min(left, remainingPLY);
       if(can > 0){
@@ -480,7 +523,6 @@ function allocateBoth(p, qty){
   else { take('ply'); take('gh'); }
 
   if(left > 0 && !allowOver){
-    // We blocked overpick; nothing else to allocate
     return { addPLY, addGH, blocked: left };
   }
   return { addPLY, addGH, blocked: 0 };
@@ -513,7 +555,7 @@ function handleConfirmScan(q){
       return;
     }
     p.plyPicked = next;
-    setStatusBadge('OK +'+qty+' (PLY): ' + (p.r[COL_TITLE]||''), 'ok');
+    setStatusBadge('OK +' + qty + ' (PLY): ' + (p.r[COL_TITLE]||''), 'ok');
   }
   else if(meta.toSelection === 'green'){
     const allowOver = document.getElementById('allowOver').checked;
@@ -523,12 +565,11 @@ function handleConfirmScan(q){
       return;
     }
     p.ghPicked = next;
-    setStatusBadge('OK +'+qty+' (GH): ' + (p.r[COL_TITLE]||''), 'ok');
+    setStatusBadge('OK +' + qty + ' (GH): ' + (p.r[COL_TITLE]||''), 'ok');
   }
   else{
-    // BOTH: auto allocate into remaining buckets, spillover supported
     const beforePLY = p.plyPicked||0;
-    const beforeGH = p.ghPicked||0;
+    const beforeGH  = p.ghPicked||0;
 
     const res = allocateBoth(p, qty);
 
@@ -540,14 +581,13 @@ function handleConfirmScan(q){
       return;
     }
 
-    let msg = `OK +${qty} (`;
     const parts = [];
     if(dPLY) parts.push(`PLY +${dPLY}`);
-    if(dGH) parts.push(`GH +${dGH}`);
-    msg += parts.join(', ') + `): ${p.r[COL_TITLE]||''}`;
+    if(dGH)  parts.push(`GH +${dGH}`);
 
+    let msg = `OK +${qty} (${parts.join(', ')}): ${p.r[COL_TITLE]||''}`;
     if(res.blocked){
-      msg += ` — BLOCKED ${res.blocked} (remaining filled)`;
+      msg += ` — BLOCKED ${res.blocked}`;
       setStatusBadge(msg, 'warn');
     } else {
       setStatusBadge(msg, 'ok');
@@ -574,7 +614,7 @@ function csvEscape(s){
 function pickerFilename(){ return `${meta.from}_to_${meta.to}_${meta.date}_${meta.time}_PICK.csv`; }
 function uploadFilename(dest){ return `${meta.from}_to_${dest}_${meta.date}_${meta.time}_UPLOAD.csv`; }
 function downloadText(name,text){
-  const blob=new Blob([text],{type:'text/csv'});
+  const blob=new Blob([text],{type:'text/csv;charset=utf-8;'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
   a.href=url;
@@ -592,7 +632,7 @@ function downloadPickerCSV(){
   csv+=`Generated: ${meta.date} ${meta.time}\n`;
   csv+=`Shopify Transfer #: ______________________\n\n`;
 
-  // Picker sheet shows PLANNED
+  // Picker sheet shows PLANNED counts
   if(meta.toSelection==='plymouth'){
     csv += "Barcode,SKU,Title,WH Bin,WH Available,Planned PLY\n";
   } else if(meta.toSelection==='green'){
@@ -618,7 +658,7 @@ function downloadPickerCSV(){
 }
 
 function buildUpload(dest){
-  // STRICT: sku,barcode,quantity  (confirmed counts)
+  // STRICT: sku,barcode,quantity  (CONFIRMED counts)
   let csv="sku,barcode,quantity\n";
   lastPick.forEach(p=>{
     const sku = getSku(p.r);
@@ -632,11 +672,25 @@ function buildUpload(dest){
 function downloadShopifyCSV(){
   if(!meta) return;
 
+  // NEW: Safe behavior — if not in Confirm Mode, OK starts Confirm Mode and returns (no upload)
   if(!confirmMode){
     const ok = confirm(
-      "You're not in Confirm Mode.\n\nShopify Upload must be based on CONFIRMED scanned counts to prevent ghost inventory.\n\nGo to Confirm (Scan) and scan staged items first.\n\nClick OK to continue anyway (NOT recommended), or Cancel."
+      "Shopify Upload requires Confirm Mode.\n\n" +
+      "Click OK to START Confirm Mode.\n\n" +
+      "• Confirmed counts will reset to 0\n" +
+      "• Scan the items that are physically staged\n" +
+      "• Then click Shopify Upload again\n\n" +
+      "Click Cancel to go back."
     );
     if(!ok) return;
+
+    lastPick.forEach(p=>{ p.plyPicked = 0; p.ghPicked = 0; });
+    confirmMode = true;
+    setConfirmUI(true);
+    setStatusBadge('Confirm Mode started — scan staged items now', 'warn');
+    setTimeout(()=>document.getElementById('confirmScan').focus(), 50);
+
+    return; // IMPORTANT: do not generate upload yet
   }
 
   if(meta.toSelection==='plymouth'){
