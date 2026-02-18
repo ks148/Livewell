@@ -101,7 +101,7 @@
 
   <h1>Bin</h1>
   <p class="sub">
-    Uses <code>pickle-data.csv</code>. Bin Assignment exports a CSV you can open in Excel for sequential bin formulas, or fill bins now.
+    Uses <code>pickle-data.csv</code>. Bin Assignment exports a CSV you can open in Excel for sequential bin formulas, or fill bins live.
     <strong>Do not upload blank bins to Shopify</strong> unless you intend to clear bins.
   </p>
 
@@ -110,14 +110,32 @@
        ======================= -->
   <div class="card">
     <div class="row" style="justify-content:space-between;align-items:flex-start">
-      <div>
+      <div style="min-width:260px;flex:1">
         <h2>Bin Assignment (Scan → CSV)</h2>
+
+        <!-- ✅ behavior spelled out -->
         <div class="sub" style="margin:0">
-          Scan item (barcode or SKU). Bin is optional. Rows stay in scan order.
-          Export has ONLY <span class="mono">Variant ID</span> + bin metafield column.
+          <strong>How this works:</strong><br><br>
+
+          1) Scan an item (barcode or SKU) and press Enter.<br>
+          2) If the Bin field is empty, the cursor automatically moves to the Bin field.<br>
+          3) Scan or type the bin value and press Enter.<br>
+          4) The row is added in scan order and the cursor returns to the Item field.<br><br>
+
+          • If the Bin field already has a value, pressing Enter on the Item field will add the row immediately.<br>
+          • Bin is optional — you may leave it blank if generating sequential bins later in Excel.<br>
+          • <strong>Important:</strong> uploading blank bins to Shopify will clear bin locations.<br><br>
+
+          Export includes ONLY:
+          <span class="mono">Variant ID</span> and
+          <span class="mono">Variant Metafield: custom.wh_bin [single_line_text_field]</span>
         </div>
       </div>
-      <div id="assignStatus" class="badge warn">Waiting for CSV…</div>
+
+      <div style="min-width:220px;text-align:right">
+        <div id="assignStatus" class="badge warn">Waiting for CSV…</div>
+        <div id="assignHint" class="sub" style="margin-top:8px"></div>
+      </div>
     </div>
 
     <div class="row" style="margin-top:12px;align-items:flex-end">
@@ -128,12 +146,10 @@
 
       <div style="min-width:280px">
         <div class="small">Bin value (optional)</div>
-        <input id="assignBin" class="med mono" placeholder="Scan/type bin (optional)" />
+        <input id="assignBin" class="med mono" placeholder="Scan/type bin (optional) + Enter" />
       </div>
 
-      <button class="btn btnPrimary" type="button" onclick="addAssignment()">Add</button>
-      <button class="btn" type="button" onclick="applyBinToLast()" id="applyLastBtn" disabled>Apply Bin to Last</button>
-
+      <button class="btn btnPrimary" type="button" onclick="addAssignmentFromButtons()">Add</button>
       <button class="btn" type="button" onclick="downloadAssignmentsCSV()" id="dlAssignBtn" disabled>Download CSV</button>
       <button class="btn btnDanger" type="button" onclick="clearAssignments()">Clear</button>
     </div>
@@ -155,13 +171,6 @@
         </thead>
         <tbody id="assignTable"></tbody>
       </table>
-    </div>
-
-    <div class="sub" style="margin-top:10px">
-      Export headers are exactly:
-      <span class="pill mono">Variant ID</span>
-      and
-      <span class="pill mono">Variant Metafield: custom.wh_bin [single_line_text_field]</span>
     </div>
   </div>
 
@@ -206,16 +215,19 @@
 <script>
   const CSV_URL = '../pickle-data.csv';
 
-  // headers for lookup (your existing)
+  // headers used in pickle-data.csv (your current standard)
   const COL_BARCODE = 'Variant Barcode';
   const COL_SKU = 'Variant SKU';
   const COL_TITLE = 'Title';
   const COL_BIN = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
 
   // Variant ID candidates (master id)
-  const VARIANT_ID_CANDIDATES = ['Variant ID','Variant Id','variant_id','variant id','VariantID','Variant: ID','Variant: Id'];
+  const VARIANT_ID_CANDIDATES = [
+    'Variant ID','Variant Id','variant_id','variant id','VariantID',
+    'Variant: ID','Variant: Id'
+  ];
 
-  // duplicate protection window (ms)
+  // duplicate protection window (ms) for lookup
   const DUP_WINDOW_MS = 2000;
 
   let rows = [];
@@ -232,11 +244,11 @@
   const scanCountEl = document.getElementById('scanCount');
 
   const assignStatusEl = document.getElementById('assignStatus');
+  const assignHintEl = document.getElementById('assignHint');
   const assignScanEl = document.getElementById('assignScan');
   const assignBinEl = document.getElementById('assignBin');
   const assignTableEl = document.getElementById('assignTable');
   const dlAssignBtn = document.getElementById('dlAssignBtn');
-  const applyLastBtn = document.getElementById('applyLastBtn');
   const assignPreviewEl = document.getElementById('assignPreview');
 
   function esc(s){
@@ -255,6 +267,9 @@
   function setAssignStatus(kind, text){
     assignStatusEl.className = 'badge ' + (kind || 'warn');
     assignStatusEl.textContent = text;
+  }
+  function setAssignHint(html){
+    assignHintEl.innerHTML = html || '';
   }
 
   // CSV parsing (robust)
@@ -317,6 +332,7 @@
     setStatus(false, 'Loading…');
     setMeta('');
     setAssignStatus('warn','Loading CSV…');
+    setAssignHint('');
     try{
       const url = CSV_URL + '?v=' + Date.now();
       const res = await fetch(url, { cache: 'no-store' });
@@ -340,23 +356,24 @@
       const sample = rows[0] || {};
       const hasVID = VARIANT_ID_CANDIDATES.some(k => k in sample);
       if(!hasVID){
-        setAssignStatus('bad','Missing Variant ID column in pickle-data.csv');
-        assignPreviewEl.innerHTML = `<span class="badge bad">Heads up</span> <span class="sub">This tool requires Variant ID in your export.</span>`;
+        setAssignStatus('bad','Missing Variant ID column');
+        setAssignHint(`<span class="badge bad">Fix</span> Add <span class="mono">Variant ID</span> to your pickle-data export for bin assignment.`);
       } else {
         setAssignStatus('good','Ready');
-        assignPreviewEl.textContent = '';
+        setAssignHint(`<span class="badge good">Flow</span> Scan item → (auto to bin if blank) → scan bin → Enter → next item`);
       }
     }catch(e){
       rows = [];
       setStatus(false, `Couldn’t load <code>${esc(CSV_URL)}</code> — ${esc(e.message)}`);
       setMeta(`<div style="color:#7f1d1d;"><strong>Tip:</strong> Open <code>${esc(CSV_URL)}</code> in a browser tab to confirm it exists.</div>`);
       setAssignStatus('bad','CSV load failed');
+      setAssignHint('');
     }
   }
 
   function openCSV(){ window.open(CSV_URL, '_blank', 'noopener'); }
 
-  // ===== Lookup tool (existing) =====
+  // ===== Bin Lookup (existing) =====
   function renderLog(){
     scanCountEl.textContent = String(logEntries.length);
     logEl.innerHTML = '';
@@ -437,7 +454,7 @@
     }
   });
 
-  // ===== Bin Assignment (scan order, bin optional) =====
+  // ===== Bin Assignment (scan order, bin optional, fast focus flow) =====
   function findRowByScan(q){
     if(!rows.length) return null;
     return rows.find(r =>
@@ -448,7 +465,6 @@
 
   function renderAssignments(){
     dlAssignBtn.disabled = assignments.length === 0;
-    applyLastBtn.disabled = assignments.length === 0;
 
     assignTableEl.innerHTML = '';
     assignments.forEach((a, i)=>{
@@ -465,7 +481,6 @@
         <td><button class="btn" type="button" data-i="${i}">Delete</button></td>
       `;
 
-      // live-update bin edits
       tr.querySelector('input').addEventListener('input', (ev)=>{
         const idx = Number(ev.currentTarget.getAttribute('data-i'));
         if(!Number.isFinite(idx)) return;
@@ -482,36 +497,34 @@
 
     if(assignments.length){
       const last = assignments[assignments.length-1];
+      const binTxt = (last.bin && last.bin.trim()) ? ` → <span class="mono">${esc(last.bin)}</span>` : ` → <span class="mono">(bin blank)</span>`;
       assignPreviewEl.innerHTML =
-        `<span class="badge good">Added</span> <span class="sub">#${assignments.length}: ${esc(last.title)} (VID ${esc(last.variantId)})</span>`;
+        `<span class="badge good">Added</span> <span class="sub">#${assignments.length}: ${esc(last.title)} (VID ${esc(last.variantId)})${binTxt}</span>`;
     } else {
       assignPreviewEl.textContent = '';
     }
   }
 
-  function addAssignment(){
-    const scanVal = assignScanEl.value.trim();
-    const binVal = assignBinEl.value.trim(); // OPTIONAL
-
+  function addAssignmentCore(scanVal, binVal){
     if(!rows.length){
       setAssignStatus('bad','CSV not loaded');
-      return;
+      return false;
     }
     if(!scanVal){
       setAssignStatus('warn','Scan an item first');
-      return;
+      return false;
     }
 
     const row = findRowByScan(scanVal);
     if(!row){
       setAssignStatus('bad','Item not found in CSV');
-      return;
+      return false;
     }
 
     const variantId = getVariantId(row);
     if(!variantId){
       setAssignStatus('bad','Variant ID missing for this item');
-      return;
+      return false;
     }
 
     assignments.push({
@@ -519,36 +532,69 @@
       barcode: String(row[COL_BARCODE]||'').trim(),
       sku: String(row[COL_SKU]||'').trim(),
       title: String(row[COL_TITLE]||'').trim(),
-      bin: binVal // can be blank
+      bin: binVal || '' // can be blank
     });
 
     setAssignStatus('good','Ready');
-    assignScanEl.value = '';
-
-    // Keep bin field as-is (so you can reuse or overwrite)
-    assignScanEl.focus();
-
     renderAssignments();
+    dlAssignBtn.disabled = assignments.length === 0;
+    return true;
   }
 
-  function applyBinToLast(){
-    if(!assignments.length) return;
+  // Button "Add" behavior: uses current field values
+  function addAssignmentFromButtons(){
+    const scanVal = assignScanEl.value.trim();
     const binVal = assignBinEl.value.trim();
-    if(!binVal){
-      setAssignStatus('warn','Enter/scan a bin value first');
-      assignBinEl.focus();
-      return;
-    }
-    assignments[assignments.length-1].bin = binVal;
-    setAssignStatus('good','Applied to last');
-    renderAssignments();
+    const ok = addAssignmentCore(scanVal, binVal);
+    if(!ok) return;
+
+    // after add: clear both for safety, focus item
+    assignScanEl.value = '';
+    assignBinEl.value = '';
     assignScanEl.focus();
   }
 
-  // Enter on scan adds immediately (bin optional)
+  // ✅ Fast flow: item Enter moves focus to bin if bin empty; otherwise adds immediately.
   assignScanEl.addEventListener('keydown', (e)=>{
     if(e.key === 'Enter'){
-      addAssignment();
+      const scanVal = assignScanEl.value.trim();
+      if(!scanVal) return;
+
+      // If bin is empty, jump to bin for scan bin next
+      if(!assignBinEl.value.trim()){
+        e.preventDefault();
+        setAssignHint(`<span class="badge warn">Next</span> Scan bin value, then press Enter`);
+        assignBinEl.focus();
+        return;
+      }
+
+      // If bin already present, add immediately
+      e.preventDefault();
+      const ok = addAssignmentCore(scanVal, assignBinEl.value.trim());
+      if(!ok) return;
+
+      // Clear both to prevent accidental reuse of old bin
+      assignScanEl.value = '';
+      assignBinEl.value = '';
+      setAssignHint(`<span class="badge good">OK</span> Scan next item`);
+      assignScanEl.focus();
+    }
+  });
+
+  // ✅ Bin Enter always adds (bin can be blank for Excel sequencing)
+  assignBinEl.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      const scanVal = assignScanEl.value.trim();
+      const binVal = assignBinEl.value.trim(); // can be blank
+      const ok = addAssignmentCore(scanVal, binVal);
+      if(!ok) return;
+
+      // After add: clear both and return to item field
+      assignScanEl.value = '';
+      assignBinEl.value = '';
+      setAssignHint(`<span class="badge good">OK</span> Scan next item`);
+      assignScanEl.focus();
     }
   });
 
@@ -558,8 +604,12 @@
     if(!ok) return;
     assignments = [];
     renderAssignments();
+    dlAssignBtn.disabled = true;
     setAssignStatus('good','Ready');
+    setAssignHint(`<span class="badge good">Ready</span> Scan item`);
     assignPreviewEl.textContent = '';
+    assignScanEl.value = '';
+    assignBinEl.value = '';
     assignScanEl.focus();
   }
 
@@ -576,7 +626,7 @@
 
     let csv = `${H_VARIANT_ID},${H_BIN}\n`;
     assignments.forEach(a=>{
-      // Bin can be blank — that is intentional for your Excel sequencing workflow
+      // Bin can be blank — intentional for Excel sequencing
       csv += `${csvEscape(a.variantId)},${csvEscape(a.bin || '')}\n`;
     });
 
