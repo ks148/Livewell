@@ -25,8 +25,6 @@ th{background:#f1f5f9}
 .badge.warn{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
 .scanbox{font-size:22px;padding:10px 12px;width:320px;max-width:100%;border-radius:10px;border:1px solid #cbd5e1}
 .k{font-weight:900}
-.pill{display:inline-block;border:1px solid #e5e7eb;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:900;background:#fff}
-.pill.active{background:#111827;color:#fff;border-color:#111827}
 .miniBtn{padding:6px 10px;border-radius:10px;border:1px solid #d1d5db;font-weight:900;cursor:pointer;background:#fff}
 .miniBtn:disabled{opacity:.4;cursor:not-allowed}
 </style>
@@ -67,7 +65,8 @@ th{background:#f1f5f9}
     <div>
       <div class="k" style="margin-bottom:6px">Confirm Pick by Barcode Scan</div>
       <div class="small">
-        Scan items that are physically staged to move. Counts build automatically. Shopify Upload will be generated from these confirmed counts.
+        Scan items that are physically staged to move. Counts build automatically.
+        For <span class="k">BOTH</span> picks, scans are auto-allocated to the destination(s) that still need that item (based on Remaining).
       </div>
     </div>
     <div class="small" id="confirmMeta"></div>
@@ -81,16 +80,18 @@ th{background:#f1f5f9}
       <input id="scanQty" type="number" min="1" step="1" value="1" style="width:90px">
     </label>
 
+    <label class="row" style="gap:8px" id="priorityWrap" style="display:none">
+      <span class="small">Allocation</span>
+      <select id="allocPriority">
+        <option value="ply_first" selected>Fill PLY then GH</option>
+        <option value="gh_first">Fill GH then PLY</option>
+      </select>
+    </label>
+
     <label class="row" style="gap:8px">
       <input type="checkbox" id="allowOver" />
       <span class="small">Allow overpick</span>
     </label>
-
-    <div id="destToggle" class="row" style="gap:8px;display:none">
-      <span class="small">Confirming:</span>
-      <button class="pill active" type="button" id="destPLY" onclick="setConfirmDest('plymouth')">PLY</button>
-      <button class="pill" type="button" id="destGH" onclick="setConfirmDest('green')">GH</button>
-    </div>
 
     <div style="flex:1"></div>
 
@@ -118,7 +119,6 @@ const COL_WH_BIN = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
 const SKU_CANDIDATES = ['Variant SKU','SKU','sku'];
 
 const COL_WH_AV = 'Inventory Available: Warehouse-66';
-const COL_CONT_AV = 'Inventory Available: Container - PLY';
 const COL_PLY_ON = 'Inventory Available: Plymouth';
 const COL_GH_ON = 'Inventory Available: Green Harbor';
 
@@ -132,8 +132,7 @@ let lastPick = [];   // [{ r, plyPlan, ghPlan, plyPicked, ghPicked, toSel, whAva
 let meta = null;
 
 let confirmMode = false;
-let confirmDest = 'plymouth'; // used only when toSelection === 'both'
-let pickIndex = new Map();    // key: barcode/sku => index in lastPick
+let pickIndex = new Map(); // barcode/sku => index in lastPick
 
 // duplicate scan protection (scanner double-fire)
 const DUP_WINDOW_MS = 350;
@@ -170,7 +169,7 @@ function locCode(val){
   return String(val||'').toUpperCase();
 }
 
-// Robust CSV parser (handles commas/quotes)
+// Robust CSV parser
 function parseCSV(text){
   text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   const out = [];
@@ -218,7 +217,6 @@ async function loadCSV(){
 
 function renderHead(toSel){
   let h = `<th>Barcode</th><th>SKU</th><th>Title</th><th>WH Bin</th><th>WH Avail</th>`;
-
   if(toSel === 'plymouth'){
     h += `<th>Planned PLY</th><th>Confirmed PLY</th><th>Remaining</th><th>Adjust</th>`;
   } else if(toSel === 'green'){
@@ -227,7 +225,6 @@ function renderHead(toSel){
     h += `<th>Planned PLY</th><th>Confirmed PLY</th><th>Remaining PLY</th>
           <th>Planned GH</th><th>Confirmed GH</th><th>Remaining GH</th><th>Adjust</th>`;
   }
-
   document.getElementById('tableHead').innerHTML = h;
 }
 
@@ -275,7 +272,6 @@ function buildPick(){
     const idx = lastPick.length;
     lastPick.push(item);
 
-    // Build fast lookup index by barcode and sku
     if(barcode) pickIndex.set(barcode, idx);
     const sku = getSku(r);
     if(sku) pickIndex.set(sku, idx);
@@ -298,8 +294,8 @@ function buildPick(){
   document.getElementById('confirmBtn').disabled = false;
   document.getElementById('shopifyBtn').disabled = false;
 
-  // Default confirm dest
-  confirmDest = (toSel === 'green') ? 'green' : 'plymouth';
+  // Show allocation dropdown only for BOTH
+  document.getElementById('priorityWrap').style.display = (toSel === 'both') ? 'flex' : 'none';
 }
 
 function renderTable(){
@@ -312,23 +308,22 @@ function renderTable(){
     const title = String(p.r[COL_TITLE] || '').trim();
     const bin = String(p.r[COL_WH_BIN] || '').trim();
 
-    const tr = document.createElement('tr');
+    const plyRemain = Math.max((p.plyPlan||0) - (p.plyPicked||0), 0);
+    const ghRemain  = Math.max((p.ghPlan||0) - (p.ghPicked||0), 0);
 
-    const adjustBtns = (which)=> {
-      // which: 'ply' | 'gh' | 'both'
-      const btnMinusPLY = `<button class="miniBtn" type="button" ${(!confirmMode ? 'disabled' : '')} onclick="adjustPicked(${idx},'ply',-1)">- PLY</button>`;
-      const btnPlusPLY  = `<button class="miniBtn" type="button" ${(!confirmMode ? 'disabled' : '')} onclick="adjustPicked(${idx},'ply',+1)">+ PLY</button>`;
-      const btnMinusGH  = `<button class="miniBtn" type="button" ${(!confirmMode ? 'disabled' : '')} onclick="adjustPicked(${idx},'gh',-1)">- GH</button>`;
-      const btnPlusGH   = `<button class="miniBtn" type="button" ${(!confirmMode ? 'disabled' : '')} onclick="adjustPicked(${idx},'gh',+1)">+ GH</button>`;
+    const adjustBtns = ()=>{
+      const dis = (!confirmMode ? 'disabled' : '');
+      const btnMinusPLY = `<button class="miniBtn" type="button" ${dis} onclick="adjustPicked(${idx},'ply',-1)">- PLY</button>`;
+      const btnPlusPLY  = `<button class="miniBtn" type="button" ${dis} onclick="adjustPicked(${idx},'ply',+1)">+ PLY</button>`;
+      const btnMinusGH  = `<button class="miniBtn" type="button" ${dis} onclick="adjustPicked(${idx},'gh',-1)">- GH</button>`;
+      const btnPlusGH   = `<button class="miniBtn" type="button" ${dis} onclick="adjustPicked(${idx},'gh',+1)">+ GH</button>`;
 
       if(p.toSel === 'plymouth') return `<div class="row" style="gap:6px">${btnMinusPLY}${btnPlusPLY}</div>`;
       if(p.toSel === 'green') return `<div class="row" style="gap:6px">${btnMinusGH}${btnPlusGH}</div>`;
       return `<div class="row" style="gap:6px;flex-wrap:wrap">${btnMinusPLY}${btnPlusPLY}${btnMinusGH}${btnPlusGH}</div>`;
     };
 
-    const plyRemain = Math.max((p.plyPlan||0) - (p.plyPicked||0), 0);
-    const ghRemain  = Math.max((p.ghPlan||0) - (p.ghPicked||0), 0);
-
+    const tr = document.createElement('tr');
     let row = `
       <td class="mono">${barcode}</td>
       <td class="mono">${sku}</td>
@@ -341,12 +336,12 @@ function renderTable(){
       row += `<td class="mono">${p.plyPlan}</td>
               <td class="mono">${p.plyPicked}</td>
               <td class="mono">${plyRemain}</td>
-              <td>${adjustBtns('ply')}</td>`;
+              <td>${adjustBtns()}</td>`;
     } else if(p.toSel === 'green'){
       row += `<td class="mono">${p.ghPlan}</td>
               <td class="mono">${p.ghPicked}</td>
               <td class="mono">${ghRemain}</td>
-              <td>${adjustBtns('gh')}</td>`;
+              <td>${adjustBtns()}</td>`;
     } else {
       row += `<td class="mono">${p.plyPlan}</td>
               <td class="mono">${p.plyPicked}</td>
@@ -354,7 +349,7 @@ function renderTable(){
               <td class="mono">${p.ghPlan}</td>
               <td class="mono">${p.ghPicked}</td>
               <td class="mono">${ghRemain}</td>
-              <td>${adjustBtns('both')}</td>`;
+              <td>${adjustBtns()}</td>`;
     }
 
     tr.innerHTML = row;
@@ -365,13 +360,11 @@ function renderTable(){
 function setConfirmUI(on){
   const badge = document.getElementById('confirmState');
   const card = document.getElementById('confirmCard');
-  const destToggle = document.getElementById('destToggle');
 
   if(on){
     badge.textContent = 'Confirm Mode: ON';
     badge.classList.remove('off'); badge.classList.add('on');
     card.style.display = 'block';
-    destToggle.style.display = (meta && meta.toSelection === 'both') ? 'flex' : 'none';
     updateConfirmMeta();
     setTimeout(()=>document.getElementById('confirmScan').focus(), 50);
   } else {
@@ -392,14 +385,6 @@ function updateConfirmMeta(){
   `;
 }
 
-function setConfirmDest(dest){
-  confirmDest = dest;
-  document.getElementById('destPLY').classList.toggle('active', dest==='plymouth');
-  document.getElementById('destGH').classList.toggle('active', dest==='green');
-  setStatusBadge('Ready to scan (' + (dest==='plymouth'?'PLY':'GH') + ')', 'badge');
-  document.getElementById('confirmScan').focus();
-}
-
 function setStatusBadge(text, kind){
   const el = document.getElementById('scanStatus');
   el.className = 'badge';
@@ -414,20 +399,14 @@ function toggleConfirmMode(){
 
   if(!confirmMode){
     const ok = confirm(
-      'Start Confirm Mode?\n\nThis will RESET all Confirmed counts to 0.\nYou will then confirm by scanning what is physically staged.\n\nContinue?'
+      'Start Confirm Mode?\n\nThis will RESET all Confirmed counts to 0.\nConfirm by scanning what is physically staged.\n\nContinue?'
     );
     if(!ok) return;
 
-    // reset confirmed counts to 0
     lastPick.forEach(p=>{ p.plyPicked = 0; p.ghPicked = 0; });
     confirmMode = true;
-
-    // set initial confirm dest
-    if(meta.toSelection === 'green') setConfirmDest('green');
-    else setConfirmDest('plymouth');
-
     setConfirmUI(true);
-    setStatusBadge('Ready to scan', 'badge');
+    setStatusBadge('Ready to scan', 'warn');
   } else {
     confirmMode = false;
     setConfirmUI(false);
@@ -465,6 +444,48 @@ function adjustPicked(idx, which, delta){
   renderTable();
 }
 
+// AUTO-ALLOCATE for BOTH (supports spillover with Scan Qty)
+function allocateBoth(p, qty){
+  const allowOver = document.getElementById('allowOver').checked;
+  const pref = document.getElementById('allocPriority')?.value || 'ply_first';
+
+  let remainingPLY = Math.max((p.plyPlan||0) - (p.plyPicked||0), 0);
+  let remainingGH  = Math.max((p.ghPlan||0) - (p.ghPicked||0), 0);
+
+  let addPLY = 0, addGH = 0;
+  let left = qty;
+
+  const take = (bucket)=>{
+    if(left <= 0) return;
+    if(bucket === 'ply'){
+      const can = allowOver ? left : Math.min(left, remainingPLY);
+      if(can > 0){
+        addPLY += can;
+        p.plyPicked = (p.plyPicked||0) + can;
+        left -= can;
+        remainingPLY = Math.max(remainingPLY - can, 0);
+      }
+    } else {
+      const can = allowOver ? left : Math.min(left, remainingGH);
+      if(can > 0){
+        addGH += can;
+        p.ghPicked = (p.ghPicked||0) + can;
+        left -= can;
+        remainingGH = Math.max(remainingGH - can, 0);
+      }
+    }
+  };
+
+  if(pref === 'gh_first'){ take('gh'); take('ply'); }
+  else { take('ply'); take('gh'); }
+
+  if(left > 0 && !allowOver){
+    // We blocked overpick; nothing else to allocate
+    return { addPLY, addGH, blocked: left };
+  }
+  return { addPLY, addGH, blocked: 0 };
+}
+
 function handleConfirmScan(q){
   if(!confirmMode) return;
 
@@ -483,15 +504,9 @@ function handleConfirmScan(q){
 
   const p = lastPick[idx];
   const qty = Math.max(1, Math.floor(Number(document.getElementById('scanQty').value || 1)));
-  const allowOver = document.getElementById('allowOver').checked;
 
-  // determine which destination bucket to increment
-  let bucket = 'plymouth';
-  if(meta.toSelection === 'green') bucket = 'green';
-  else if(meta.toSelection === 'plymouth') bucket = 'plymouth';
-  else bucket = confirmDest; // both
-
-  if(bucket === 'plymouth'){
+  if(meta.toSelection === 'plymouth'){
+    const allowOver = document.getElementById('allowOver').checked;
     const next = (p.plyPicked||0) + qty;
     if(!allowOver && next > (p.plyPlan||0)){
       setStatusBadge('OVER PICK (PLY): ' + (p.r[COL_TITLE]||''), 'warn');
@@ -499,7 +514,9 @@ function handleConfirmScan(q){
     }
     p.plyPicked = next;
     setStatusBadge('OK +'+qty+' (PLY): ' + (p.r[COL_TITLE]||''), 'ok');
-  } else {
+  }
+  else if(meta.toSelection === 'green'){
+    const allowOver = document.getElementById('allowOver').checked;
     const next = (p.ghPicked||0) + qty;
     if(!allowOver && next > (p.ghPlan||0)){
       setStatusBadge('OVER PICK (GH): ' + (p.r[COL_TITLE]||''), 'warn');
@@ -507,6 +524,34 @@ function handleConfirmScan(q){
     }
     p.ghPicked = next;
     setStatusBadge('OK +'+qty+' (GH): ' + (p.r[COL_TITLE]||''), 'ok');
+  }
+  else{
+    // BOTH: auto allocate into remaining buckets, spillover supported
+    const beforePLY = p.plyPicked||0;
+    const beforeGH = p.ghPicked||0;
+
+    const res = allocateBoth(p, qty);
+
+    const dPLY = (p.plyPicked||0) - beforePLY;
+    const dGH  = (p.ghPicked||0) - beforeGH;
+
+    if(dPLY === 0 && dGH === 0){
+      setStatusBadge('OVER PICK (BOTH): ' + (p.r[COL_TITLE]||''), 'warn');
+      return;
+    }
+
+    let msg = `OK +${qty} (`;
+    const parts = [];
+    if(dPLY) parts.push(`PLY +${dPLY}`);
+    if(dGH) parts.push(`GH +${dGH}`);
+    msg += parts.join(', ') + `): ${p.r[COL_TITLE]||''}`;
+
+    if(res.blocked){
+      msg += ` — BLOCKED ${res.blocked} (remaining filled)`;
+      setStatusBadge(msg, 'warn');
+    } else {
+      setStatusBadge(msg, 'ok');
+    }
   }
 
   renderTable();
@@ -522,12 +567,12 @@ document.getElementById('confirmScan').addEventListener('keydown', e=>{
   }
 });
 
-function pickerFilename(){
-  return `${meta.from}_to_${meta.to}_${meta.date}_${meta.time}_PICK.csv`;
+function csvEscape(s){
+  s = String(s ?? '');
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
 }
-function uploadFilename(dest){
-  return `${meta.from}_to_${dest}_${meta.date}_${meta.time}_UPLOAD.csv`;
-}
+function pickerFilename(){ return `${meta.from}_to_${meta.to}_${meta.date}_${meta.time}_PICK.csv`; }
+function uploadFilename(dest){ return `${meta.from}_to_${dest}_${meta.date}_${meta.time}_UPLOAD.csv`; }
 function downloadText(name,text){
   const blob=new Blob([text],{type:'text/csv'});
   const url=URL.createObjectURL(blob);
@@ -536,11 +581,6 @@ function downloadText(name,text){
   a.download=name;
   a.click();
   URL.revokeObjectURL(url);
-}
-
-function csvEscape(s){
-  s = String(s ?? '');
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
 }
 
 function downloadPickerCSV(){
@@ -552,7 +592,7 @@ function downloadPickerCSV(){
   csv+=`Generated: ${meta.date} ${meta.time}\n`;
   csv+=`Shopify Transfer #: ______________________\n\n`;
 
-  // Picker sheet shows PLANNED (not confirmed)
+  // Picker sheet shows PLANNED
   if(meta.toSelection==='plymouth'){
     csv += "Barcode,SKU,Title,WH Bin,WH Available,Planned PLY\n";
   } else if(meta.toSelection==='green'){
@@ -578,7 +618,7 @@ function downloadPickerCSV(){
 }
 
 function buildUpload(dest){
-  // STRICT: sku,barcode,quantity
+  // STRICT: sku,barcode,quantity  (confirmed counts)
   let csv="sku,barcode,quantity\n";
   lastPick.forEach(p=>{
     const sku = getSku(p.r);
@@ -606,6 +646,10 @@ function downloadShopifyCSV(){
     downloadText(uploadFilename('GH'), buildUpload('green'));
   }
   else{
+    const ok2 = confirm(
+      "BOTH pick detected.\n\nThis will download TWO Shopify upload files:\n1) WH → PLY\n2) WH → GH\n\nYou must create two transfers in Shopify.\n\nContinue?"
+    );
+    if(!ok2) return;
     downloadText(uploadFilename('PLY'), buildUpload('plymouth'));
     downloadText(uploadFilename('GH'), buildUpload('green'));
   }
