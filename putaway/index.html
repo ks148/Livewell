@@ -80,20 +80,22 @@
 <div class="wrap">
 
   <div class="topnav">
-  <div class="row">
-    <a href="../index.html"><button>🏠 Home</button></a>
-    <a href="../Picks/index.html"><button>📋 Picks</button></a>
-    <a href="../putaway/index.html"><button class="active">📦 Putaway</button></a>
-    <a href="../bin/index.html"><button>📍 Bin Lookup</button></a>
-    <div class="spacer"></div>
-    <div class="small">Ops Tools</div>
+    <div class="row">
+      <a href="../index.html"><button>🏠 Home</button></a>
+      <a href="../Picks/index.html"><button>📋 Picks</button></a>
+      <a href="../putaway/index.html"><button class="active">📦 Putaway</button></a>
+      <a href="../bin/index.html"><button>📍 Bin Lookup</button></a>
+      <div class="spacer"></div>
+      <div class="small">Ops Tools</div>
+    </div>
   </div>
-</div>
+
   <div class="card">
     <h1>Scan / Putaway</h1>
     <p class="sub">
       Auto-loads <strong>pickle-data.csv</strong>. Scan SKU/barcode to see needed-to-max and WH bin.
-      Bin updates are now <strong>auto-queued on every scan</strong> (no “Queue Bin” click needed). Blank bins are allowed.
+      Bin updates are <strong>auto-queued on every scan</strong>. Blank bins are allowed.
+      <br><strong>Draft saving:</strong> this page auto-saves your progress so switching tools / refresh / closing the tab won’t lose work.
     </p>
 
     <div class="row" style="align-items:flex-start">
@@ -107,6 +109,16 @@
         <div id="meta" class="sub" style="margin-top:8px"></div>
         <div class="kpi" id="kpis"></div>
       </div>
+    </div>
+
+    <!-- Draft controls -->
+    <div class="row" style="margin-top:10px">
+      <button class="btn" type="button" onclick="draftSaveNow()">Save Draft</button>
+      <button class="btn" type="button" onclick="draftLoadNow()">Load Draft</button>
+      <button class="btn" type="button" onclick="draftExport()">Export Draft (JSON)</button>
+      <button class="btn" type="button" onclick="draftImport()">Import Draft (JSON)</button>
+      <button class="btn btnDanger" type="button" onclick="draftClear()">Clear Draft</button>
+      <span id="draftStatus" class="sub"></span>
     </div>
 
     <div class="hr"></div>
@@ -210,7 +222,7 @@
       <div class="hr"></div>
 
       <div style="font-weight:1000;font-size:16px;margin-bottom:6px">Queued updates preview</div>
-      <div class="sub">Bin updates now fill automatically after each scan (and change live when you edit the bin field).</div>
+      <div class="sub">Bin updates auto-fill after each scan (and change live when you edit the bin field).</div>
       <div id="queuePreview" style="margin-top:10px"></div>
     </div>
 
@@ -253,6 +265,184 @@ const bQueue  = new Map();   // id -> bin string (can be blank)
 
 // Putaway log
 const putawayList = [];
+
+// ===============================
+// LIVEWELL STATE KIT (v1) - PUTAWAY
+// ===============================
+const STATE_KEY = 'livewell:putaway:v1';
+const STATE_VERSION = 1;
+const draftStatusEl = document.getElementById('draftStatus');
+
+function nowISO(){ return new Date().toISOString(); }
+
+function saveDraft(key, stateObj){
+  const payload = { _meta:{ version: STATE_VERSION, savedAt: nowISO() }, state: stateObj };
+  localStorage.setItem(key, JSON.stringify(payload));
+}
+
+function loadDraft(key){
+  const raw = localStorage.getItem(key);
+  if(!raw) return null;
+  try{
+    const payload = JSON.parse(raw);
+    if(!payload || !payload.state) return null;
+    return payload;
+  }catch{ return null; }
+}
+
+function clearDraft(key){ localStorage.removeItem(key); }
+
+function setDraftStatus(msg){ if(draftStatusEl) draftStatusEl.textContent = msg || ''; }
+
+function downloadJSON(filename, obj){
+  const text = JSON.stringify(obj, null, 2);
+  const blob = new Blob([text], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function pickFile(accept){
+  return new Promise((resolve)=>{
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept || '.json,application/json';
+    input.onchange = () => resolve(input.files?.[0] || null);
+    input.click();
+  });
+}
+
+async function loadJSONFile(){
+  const file = await pickFile('.json,application/json');
+  if(!file) return null;
+  const text = await file.text();
+  return JSON.parse(text);
+}
+
+let _saveTimer = null;
+function scheduleSave(delayMs=150){
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(()=> {
+    try{ saveDraft(STATE_KEY, getState()); setDraftStatus(`Auto-saved ${new Date().toLocaleTimeString()}`); }catch{}
+  }, delayMs);
+}
+
+function mapToEntries(m){ return Array.from(m.entries()); }
+function entriesToMap(entries){
+  const m = new Map();
+  if(Array.isArray(entries)){
+    for(const pair of entries){
+      if(Array.isArray(pair) && pair.length >= 2) m.set(pair[0], pair[1]);
+    }
+  }
+  return m;
+}
+
+function getState(){
+  // store edit fields so you can leave mid-item and come back
+  const edit = {
+    inVariantId: document.getElementById('inVariantId')?.value || '',
+    inBin: document.getElementById('inBin')?.value || '',
+    inWeight: document.getElementById('inWeight')?.value || '',
+    inMinPly: document.getElementById('inMinPly')?.value || '',
+    inMaxPly: document.getElementById('inMaxPly')?.value || '',
+    inMinGh: document.getElementById('inMinGh')?.value || '',
+    inMaxGh: document.getElementById('inMaxGh')?.value || ''
+  };
+
+  return {
+    mmQueue: mapToEntries(mmQueue),
+    wQueue: mapToEntries(wQueue),
+    bQueue: mapToEntries(bQueue),
+    putawayList: [...putawayList],
+    currentMatch: currentMatch ? {...currentMatch} : null,
+    editCardVisible: (document.getElementById('editCard')?.style.display !== 'none'),
+    edit
+  };
+}
+
+function applyState(st){
+  // clear existing structures
+  mmQueue.clear(); wQueue.clear(); bQueue.clear();
+  putawayList.length = 0;
+
+  const mm = entriesToMap(st.mmQueue);
+  const ww = entriesToMap(st.wQueue);
+  const bb = entriesToMap(st.bQueue);
+
+  for(const [k,v] of mm) mmQueue.set(k, v);
+  for(const [k,v] of ww) wQueue.set(k, v);
+  for(const [k,v] of bb) bQueue.set(k, v);
+
+  if(Array.isArray(st.putawayList)){
+    st.putawayList.forEach(x => putawayList.push(x));
+  }
+
+  currentMatch = st.currentMatch || null;
+
+  // restore edit fields (only if elements exist)
+  const e = st.edit || {};
+  const setVal = (id, val)=>{
+    const el = document.getElementById(id);
+    if(el) el.value = val ?? '';
+  };
+  setVal('inVariantId', e.inVariantId);
+  setVal('inBin', e.inBin);
+  setVal('inWeight', e.inWeight);
+  setVal('inMinPly', e.inMinPly);
+  setVal('inMaxPly', e.inMaxPly);
+  setVal('inMinGh', e.inMinGh);
+  setVal('inMaxGh', e.inMaxGh);
+
+  // show/hide edit card
+  const editCard = document.getElementById('editCard');
+  if(editCard){
+    editCard.style.display = st.editCardVisible ? 'block' : 'none';
+  }
+
+  // rebuild UI
+  rebuildPutawayTable();
+  renderQueues();
+}
+
+function draftSaveNow(){
+  saveDraft(STATE_KEY, getState());
+  setDraftStatus(`Saved ${new Date().toLocaleTimeString()}`);
+}
+
+function draftLoadNow(){
+  const payload = loadDraft(STATE_KEY);
+  if(!payload){ setDraftStatus('No draft found'); return; }
+  applyState(payload.state);
+  setDraftStatus(`Loaded draft (${new Date(payload._meta?.savedAt || Date.now()).toLocaleString()})`);
+}
+
+function draftClear(){
+  if(!confirm('Clear saved draft for Putaway?')) return;
+  clearDraft(STATE_KEY);
+  setDraftStatus('Draft cleared');
+}
+
+function draftExport(){
+  const payload = { _exportedAt: nowISO(), key: STATE_KEY, state: getState() };
+  downloadJSON(`LIVEWELL_PUTAWAY_DRAFT_${new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')}.json`, payload);
+  setDraftStatus('Exported JSON');
+}
+
+async function draftImport(){
+  try{
+    const obj = await loadJSONFile();
+    const st = obj?.state || obj; // supports wrapper or raw
+    applyState(st);
+    saveDraft(STATE_KEY, getState());
+    setDraftStatus('Imported + saved');
+  }catch{
+    alert('Could not import JSON draft.');
+  }
+}
 
 /** =========================
  * HELPERS
@@ -441,12 +631,29 @@ async function loadCSV(){
       ${etag ? `<div><strong>ETag:</strong> <span class="mono">${esc(etag)}</span></div>` : ''}
     `);
 
+    // After CSV loads, try auto-restore draft once
+    autoRestoreDraftOnce();
+
   }catch(e){
     setStatus(false, `Couldn’t load <code>${esc(CSV_URL)}</code> — ${esc(e.message)}`);
     setMeta(`<div style="color:#7f1d1d;"><strong>Tip:</strong> Open <code>${esc(CSV_URL)}</code> in a browser tab to confirm it exists.</div>`);
     rows = [];
   }
   renderQueues();
+}
+
+let _didAutoRestore = false;
+function autoRestoreDraftOnce(){
+  if(_didAutoRestore) return;
+  _didAutoRestore = true;
+
+  const payload = loadDraft(STATE_KEY);
+  if(payload?.state){
+    applyState(payload.state);
+    setDraftStatus(`Restored draft (${new Date(payload._meta?.savedAt || Date.now()).toLocaleString()})`);
+  } else {
+    setDraftStatus('No saved draft (yet)');
+  }
 }
 
 /** =========================
@@ -486,27 +693,39 @@ function isDuplicateScan(m){
 /** =========================
  * PUTAWAY LOG
  * ========================= */
-function addPutaway(m){
-  const tr = document.createElement('tr');
-  tr.innerHTML =
-    `<td>${esc(new Date().toLocaleTimeString())}</td>
-     <td class="mono">${esc(m[COL_WH_BIN]||'')}</td>
-     <td class="mono">${esc(m[COL_BARCODE]||'')}</td>
-     <td>${esc(m[COL_TITLE]||'')}</td>`;
-  document.getElementById('log').prepend(tr);
-
-  putawayList.unshift({
-    bin: m[COL_WH_BIN] || '',
-    barcode: m[COL_BARCODE] || '',
-    title: m[COL_TITLE] || ''
-  });
+function rebuildPutawayTable(){
+  const tbody = document.getElementById('log');
+  tbody.innerHTML = '';
+  // putawayList is newest-first. Render newest-first.
+  for(const item of putawayList){
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td>${esc(item.time || '')}</td>
+       <td class="mono">${esc(item.bin||'')}</td>
+       <td class="mono">${esc(item.barcode||'')}</td>
+       <td>${esc(item.title||'')}</td>`;
+    tbody.appendChild(tr);
+  }
   renderKPIs();
 }
 
+function addPutaway(m){
+  const entry = {
+    time: new Date().toLocaleTimeString(),
+    bin: m[COL_WH_BIN] || '',
+    barcode: m[COL_BARCODE] || '',
+    title: m[COL_TITLE] || ''
+  };
+  putawayList.unshift(entry);
+  rebuildPutawayTable();
+}
+
 function clearLog(){
-  document.getElementById('log').innerHTML='';
+  if(!putawayList.length) return;
+  if(!confirm('Clear the putaway scan log?')) return;
   putawayList.length = 0;
-  renderKPIs();
+  rebuildPutawayTable();
+  scheduleSave();
 }
 
 /** =========================
@@ -527,15 +746,18 @@ function showEditFor(match){
 
   // auto-queue bin on scan + keep queue updated as you type (blank allowed)
   autoQueueBinCurrent('scan');
+
   if(!binAutoHooked){
     binAutoHooked = true;
     document.getElementById('inBin').addEventListener('input', () => {
       autoQueueBinCurrent('edit');
       renderQueues();
+      scheduleSave();
     });
   }
 
   renderQueues();
+  scheduleSave();
 }
 
 function clearEdit(){
@@ -546,6 +768,9 @@ function clearEdit(){
   document.getElementById('inWeight').value = '';
   document.getElementById('inBin').value    = '';
   toast('Cleared', 'Fields cleared (bin can be left blank).');
+
+  renderQueues();
+  scheduleSave();
 }
 
 /** =========================
@@ -575,6 +800,7 @@ function queueMinMax(){
   mmQueue.set(id, existing);
   toast('Queued', 'Min/Max update queued.');
   renderQueues();
+  scheduleSave();
 }
 
 function queueWeight(){
@@ -591,6 +817,7 @@ function queueWeight(){
   wQueue.set(id, w);
   toast('Queued', 'Weight update queued.');
   renderQueues();
+  scheduleSave();
 }
 
 // Still available manually, but blank allowed
@@ -603,6 +830,7 @@ function queueBin(){
   bQueue.set(id, bin);
   toast('Queued', bin === '' ? 'Bin update queued (blank allowed).' : 'Bin update queued.');
   renderQueues();
+  scheduleSave();
 }
 
 /** =========================
@@ -689,7 +917,7 @@ document.getElementById('scan').addEventListener('keydown', (e)=>{
 
 function doScan(q){
   if(!rows.length){
-    toast('CSV not loaded', 'Click “Reload from site” first.');
+    toast('CSV not loaded', 'Reload the page or click “Reload from site”.');
     return;
   }
   if(!q){
@@ -743,6 +971,8 @@ function doScan(q){
   // Add to putaway and show edit panel (this also auto-queues bin now)
   addPutaway(m);
   showEditFor(m);
+
+  scheduleSave();
 }
 
 /** boot */
