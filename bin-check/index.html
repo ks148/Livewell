@@ -1,1 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Warehouse Kiosk – Livewell</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
+<style>
+body{
+  font-family:system-ui;
+  margin:0;
+  background:#f4f6f9;
+  padding:20px;
+}
+
+.card{
+  background:#fff;
+  padding:20px;
+  border-radius:18px;
+  box-shadow:0 4px 14px rgba(0,0,0,.08);
+  margin-bottom:20px;
+}
+
+h1{
+  font-size:36px;
+  margin:0 0 6px;
+}
+
+.sub{
+  font-size:14px;
+  color:#64748b;
+  font-weight:600;
+}
+
+.scanbox{
+  font-size:28px;
+  padding:14px 16px;
+  width:100%;
+  border-radius:14px;
+  border:1px solid #cbd5e1;
+  margin-top:12px;
+}
+
+.binBig{
+  font-size:64px;
+  font-weight:1000;
+  margin-top:10px;
+}
+
+.badge{
+  display:inline-block;
+  padding:6px 12px;
+  border-radius:999px;
+  font-weight:800;
+  font-size:13px;
+}
+
+.badge.good{
+  background:#dcfce7;
+  color:#166534;
+}
+
+.badge.bad{
+  background:#fee2e2;
+  color:#7f1d1d;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:16px;
+}
+
+th,td{
+  padding:10px;
+  border-bottom:1px solid #e5e7eb;
+  text-align:left;
+}
+
+.mono{
+  font-family:monospace;
+}
+</style>
+</head>
+
+<body>
+
+<div class="card">
+  <h1>Warehouse Kiosk</h1>
+  <div class="sub">
+    Scan item → see bin instantly.  
+    Scan bin → see what belongs there.
+  </div>
+
+  <input id="scan" class="scanbox" placeholder="Scan BIN or ITEM barcode + Enter" autofocus>
+</div>
+
+<div class="card">
+  <div id="result"></div>
+</div>
+
+<script>
+const CSV_URL = '../pickle-data.csv';
+
+const COL_BARCODE = 'Variant Barcode';
+const COL_SKU = 'Variant SKU';
+const COL_TITLE = 'Title';
+const COL_BIN = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
+
+let rows = [];
+
+function esc(s){
+  return String(s ?? '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+async function loadCSV(){
+  const res = await fetch(CSV_URL + '?v=' + Date.now(), {cache:'no-store'});
+  const text = await res.text();
+  const lines = text.split('\n').filter(l=>l.trim() !== '');
+  const headers = lines[0].split(',');
+  rows = lines.slice(1).map(l=>{
+    const cols = l.split(',');
+    const obj = {};
+    headers.forEach((h,i)=>obj[h.trim()] = (cols[i]||'').trim());
+    return obj;
+  });
+}
+
+function showProduct(match){
+  const bin = match[COL_BIN] || '—';
+  document.getElementById('result').innerHTML = `
+    <div class="badge good">PRODUCT</div>
+    <div class="binBig">${esc(bin)}</div>
+    <div style="font-weight:900;margin-top:6px">${esc(match[COL_TITLE])}</div>
+    <div class="mono" style="margin-top:4px">
+      Barcode: ${esc(match[COL_BARCODE])}  
+      | SKU: ${esc(match[COL_SKU])}
+    </div>
+  `;
+}
+
+function showBin(binCode, matches){
+  let html = `
+    <div class="badge good">BIN</div>
+    <div class="binBig">${esc(binCode)}</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>SKU</th>
+          <th>Barcode</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  matches.forEach(r=>{
+    html += `
+      <tr>
+        <td>${esc(r[COL_TITLE])}</td>
+        <td class="mono">${esc(r[COL_SKU])}</td>
+        <td class="mono">${esc(r[COL_BARCODE])}</td>
+      </tr>
+    `;
+  });
+
+  html += `</tbody></table>`;
+  document.getElementById('result').innerHTML = html;
+}
+
+function handleScan(q){
+  if(!q) return;
+
+  const binMatches = rows.filter(r => (r[COL_BIN]||'').trim() === q);
+  if(binMatches.length){
+    showBin(q, binMatches);
+    return;
+  }
+
+  const product = rows.find(r =>
+    (r[COL_BARCODE] && r[COL_BARCODE] === q) ||
+    (r[COL_SKU] && r[COL_SKU] === q)
+  );
+
+  if(product){
+    showProduct(product);
+  } else {
+    document.getElementById('result').innerHTML =
+      `<div class="badge bad">Not Found</div>`;
+  }
+}
+
+document.getElementById('scan').addEventListener('keydown', e=>{
+  if(e.key === 'Enter'){
+    const q = e.target.value.trim();
+    e.target.value = '';
+    handleScan(q);
+  }
+});
+
+loadCSV();
+</script>
+
+</body>
+</html>
