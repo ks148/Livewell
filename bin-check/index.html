@@ -1,208 +1,621 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<title>Warehouse Kiosk – Livewell</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Livewell – Warehouse Kiosk</title>
+
+<link rel="manifest" href="../manifest.json">
+<meta name="theme-color" content="#0f172a">
 
 <style>
-body{
-  font-family:system-ui;
-  margin:0;
-  background:#f4f6f9;
-  padding:20px;
-}
+  :root{
+    --bg:#f7f9fc; --card:#fff; --text:#0f172a; --muted:#475569; --line:#e2e8f0;
+    --goodbg:#dcfce7; --good:#166534; --badbg:#fee2e2; --bad:#7f1d1d;
+    --warnbg:#fff7ed; --warn:#9a3412;
+    --blue:#2563eb; --blue2:#1d4ed8;
+    --shadow:0 2px 10px rgba(0,0,0,.06);
+  }
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto;background:var(--bg);margin:0;padding:18px;color:var(--text)}
+  .wrap{max-width:1100px;margin:0 auto}
 
-.card{
-  background:#fff;
-  padding:20px;
-  border-radius:18px;
-  box-shadow:0 4px 14px rgba(0,0,0,.08);
-  margin-bottom:20px;
-}
+  /* NAV (optional but handy) */
+  .topnav{
+    position:sticky; top:0; z-index:50;
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:10px;
+    margin-bottom:14px;
+    box-shadow:0 2px 10px rgba(0,0,0,.05);
+  }
+  .topnav .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .topnav a{text-decoration:none}
+  .topnav button{
+    padding:8px 14px;border-radius:10px;border:1px solid #d1d5db;
+    font-weight:900;cursor:pointer;background:#fff;
+  }
+  .topnav button.active{background:#0f172a;color:#fff;border-color:#0f172a}
+  .topnav .spacer{flex:1}
+  .small{font-size:12px;color:var(--muted);font-weight:900}
 
-h1{
-  font-size:36px;
-  margin:0 0 6px;
-}
+  h1{margin:6px 0 6px;font-size:34px}
+  .sub{margin:6px 0 0;color:var(--muted);font-size:13px;line-height:1.35}
 
-.sub{
-  font-size:14px;
-  color:#64748b;
-  font-weight:600;
-}
+  .card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:14px;
+    box-shadow:var(--shadow);border:1px solid rgba(226,232,240,.7)}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
 
-.scanbox{
-  font-size:28px;
-  padding:14px 16px;
-  width:100%;
-  border-radius:14px;
-  border:1px solid #cbd5e1;
-  margin-top:12px;
-}
+  .btn{padding:10px 12px;border-radius:12px;border:1px solid var(--line);font-weight:900;cursor:pointer;background:#fff}
+  .btn:active{transform:translateY(1px)}
 
-.binBig{
-  font-size:64px;
-  font-weight:1000;
-  margin-top:10px;
-}
+  .tag{
+    display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:900;
+    border:1px solid var(--line);background:#fff;color:#0f172a;
+  }
+  .tag.good{background:var(--goodbg);color:var(--good);border-color:#86efac}
+  .tag.warn{background:var(--warnbg);color:var(--warn);border-color:#fed7aa}
+  .tag.bad{background:var(--badbg);color:var(--bad);border-color:#fecaca}
 
-.badge{
-  display:inline-block;
-  padding:6px 12px;
-  border-radius:999px;
-  font-weight:800;
-  font-size:13px;
-}
+  .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
 
-.badge.good{
-  background:#dcfce7;
-  color:#166534;
-}
+  /* SCAN INPUT (fixed overflow) */
+  .scanWrap{width:100%;max-width:900px;margin:0 auto;}
+  .scanInput{
+    width:100%;
+    max-width:100%;
+    box-sizing:border-box;
+    font-size:30px;
+    padding:14px 16px;
+    border-radius:16px;
+    border:2px solid var(--blue);
+    outline:none;
+    background:#fff;
+  }
+  .scanInput:focus{border-color:var(--blue2); box-shadow:0 0 0 4px rgba(37,99,235,.12);}
 
-.badge.bad{
-  background:#fee2e2;
-  color:#7f1d1d;
-}
+  /* Result styles */
+  .modePill{
+    display:inline-block;
+    padding:8px 14px;
+    border-radius:999px;
+    font-weight:1000;
+    letter-spacing:.5px;
+    font-size:14px;
+    border:1px solid var(--line);
+    background:#fff;
+  }
+  .modePill.product{background:#dcfce7;border-color:#86efac;color:#166534}
+  .modePill.bin{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
+  .modePill.bad{background:#fee2e2;border-color:#fecaca;color:#7f1d1d}
 
-table{
-  width:100%;
-  border-collapse:collapse;
-  margin-top:16px;
-}
+  .binBig{font-size:56px;font-weight:1000;margin:10px 0 0;letter-spacing:1px}
+  .titleBig{font-size:26px;font-weight:1000;margin-top:6px}
+  .subLine{margin-top:8px;color:#0f172a;font-weight:900}
+  .subLine span{color:var(--muted);font-weight:900}
+  .kv{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .pill{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:1000;color:#0f172a}
+  .muted{color:var(--muted)}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  tbody tr:nth-child(even){background:#f9fafb}
 
-th,td{
-  padding:10px;
-  border-bottom:1px solid #e5e7eb;
-  text-align:left;
-}
+  /* Availability block */
+  .availabilityBlock{
+    margin-top:14px;
+    border:1px solid var(--line);
+    background:#fff;
+    border-radius:14px;
+    padding:12px;
+  }
+  .availTitle{font-weight:1000;margin-bottom:8px}
+  .availGrid{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+    gap:8px 14px;
+  }
+  @media (min-width:900px){
+    .availGrid{grid-template-columns:repeat(4, minmax(0, 1fr));}
+  }
+  .availCell{
+    border:1px solid rgba(226,232,240,.9);
+    border-radius:12px;
+    padding:10px;
+    background:#fff;
+    font-weight:1000;
+  }
+  .availCell .lbl{display:block;font-size:12px;color:var(--muted);font-weight:1000;margin-bottom:6px}
+  .availCell .val{font-size:22px}
 
-.mono{
-  font-family:monospace;
-}
+  /* Log */
+  .logWrap{margin-top:14px; overflow:auto; max-height:46vh}
 </style>
 </head>
 
 <body>
+<div class="wrap">
 
-<div class="card">
-  <h1>Warehouse Kiosk</h1>
-  <div class="sub">
-    Scan item → see bin instantly.  
-    Scan bin → see what belongs there.
+  <div class="topnav">
+    <div class="row">
+      <a href="../index.html"><button>🏠 Home</button></a>
+      <a href="../bin/index.html"><button>📍 Bin</button></a>
+      <a href="../bin-check/index.html"><button class="active">📌 Warehouse Kiosk</button></a>
+      <div class="spacer"></div>
+      <div class="small">Ops Tools</div>
+    </div>
   </div>
 
-  <input id="scan" class="scanbox" placeholder="Scan BIN or ITEM barcode + Enter" autofocus>
-</div>
+  <h1>Warehouse Kiosk</h1>
+  <p class="sub">
+    Scan a <strong>BIN</strong> to see what the system says belongs there, or scan a <strong>PRODUCT</strong> (barcode/SKU) to see its bin.
+    Data source: <span class="mono">pickle-data.csv</span>.
+  </p>
 
-<div class="card">
-  <div id="result"></div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <div class="row" style="gap:10px">
+        <span id="statusTag" class="tag warn">Loading…</span>
+        <span id="modeTag" class="tag warn">MODE: —</span>
+      </div>
+      <div class="row" style="gap:8px">
+        <button class="btn" type="button" onclick="loadCSV()">Reload CSV</button>
+        <button class="btn" type="button" onclick="openCSV()">Open CSV</button>
+        <button class="btn" type="button" onclick="undoLastScan()">Undo</button>
+        <button class="btn" type="button" onclick="clearLog()">Clear Log</button>
+      </div>
+    </div>
+
+    <div id="meta" class="sub" style="margin-top:10px"></div>
+
+    <div style="margin-top:14px">
+      <div class="small muted" style="font-weight:1000;margin-bottom:8px">
+        Scan BIN code OR product barcode/SKU then press Enter
+      </div>
+      <div class="scanWrap">
+        <input id="scan" class="scanInput" placeholder="Scan BIN or ITEM barcode + Enter" autofocus />
+      </div>
+    </div>
+
+    <div id="result" style="margin-top:16px"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <div class="sub">Scans this session: <strong id="scanCount">0</strong></div>
+      <div class="sub muted">Tip: scanner should be in “keyboard” mode with an Enter suffix.</div>
+    </div>
+
+    <div class="logWrap">
+      <table>
+        <thead><tr><th>Time</th><th>Type</th><th>Bin</th><th>Barcode</th><th>Title</th><th></th></tr></thead>
+        <tbody id="log"></tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 
 <script>
-const CSV_URL = '../pickle-data.csv';
+  /** =========================
+   * CONFIG
+   * ========================= */
+  const CSV_URL = '../pickle-data.csv';
 
-const COL_BARCODE = 'Variant Barcode';
-const COL_SKU = 'Variant SKU';
-const COL_TITLE = 'Title';
-const COL_BIN = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
+  // pickle-data headers
+  const COL_BARCODE = 'Variant Barcode';
+  const COL_SKU = 'Variant SKU';
+  const COL_TITLE = 'Title';
+  const COL_BIN = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
 
-let rows = [];
+  // Inventory columns (requested)
+  const COL_WH_AV = 'Inventory Available: Warehouse-66';
+  const COL_PLY_AV = 'Inventory Available: Plymouth';
+  const COL_GH_AV = 'Inventory Available: Green Harbor';
+  const COL_CON_AV = 'Inventory Available: Container - PLY';
 
-function esc(s){
-  return String(s ?? '')
-    .replace(/&/g,'&amp;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;');
-}
+  // Variant ID candidates (optional display)
+  const VARIANT_ID_CANDIDATES = [
+    'Variant ID','Variant Id','variant_id','variant id','VariantID',
+    'Variant: ID','Variant: Id'
+  ];
 
-async function loadCSV(){
-  const res = await fetch(CSV_URL + '?v=' + Date.now(), {cache:'no-store'});
-  const text = await res.text();
-  const lines = text.split('\n').filter(l=>l.trim() !== '');
-  const headers = lines[0].split(',');
-  rows = lines.slice(1).map(l=>{
-    const cols = l.split(',');
-    const obj = {};
-    headers.forEach((h,i)=>obj[h.trim()] = (cols[i]||'').trim());
-    return obj;
-  });
-}
+  const DUP_WINDOW_MS = 1200;
 
-function showProduct(match){
-  const bin = match[COL_BIN] || '—';
-  document.getElementById('result').innerHTML = `
-    <div class="badge good">PRODUCT</div>
-    <div class="binBig">${esc(bin)}</div>
-    <div style="font-weight:900;margin-top:6px">${esc(match[COL_TITLE])}</div>
-    <div class="mono" style="margin-top:4px">
-      Barcode: ${esc(match[COL_BARCODE])}  
-      | SKU: ${esc(match[COL_SKU])}
-    </div>
-  `;
-}
+  let rows = [];
+  let logEntries = [];
+  let lastScan = { key:'', ts:0 };
 
-function showBin(binCode, matches){
-  let html = `
-    <div class="badge good">BIN</div>
-    <div class="binBig">${esc(binCode)}</div>
-    <table>
-      <thead>
-        <tr>
-          <th>Title</th>
-          <th>SKU</th>
-          <th>Barcode</th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
+  /** =========================
+   * ELEMENTS
+   * ========================= */
+  const metaEl = document.getElementById('meta');
+  const resultEl = document.getElementById('result');
+  const logEl = document.getElementById('log');
+  const scanCountEl = document.getElementById('scanCount');
 
-  matches.forEach(r=>{
-    html += `
-      <tr>
-        <td>${esc(r[COL_TITLE])}</td>
-        <td class="mono">${esc(r[COL_SKU])}</td>
-        <td class="mono">${esc(r[COL_BARCODE])}</td>
-      </tr>
+  const statusTagEl = document.getElementById('statusTag');
+  const modeTagEl = document.getElementById('modeTag');
+
+  function esc(s){
+    return String(s ?? '')
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;');
+  }
+  function setTag(el, kind, text){
+    el.className = 'tag ' + (kind || 'warn');
+    el.textContent = text;
+  }
+  function nInt(v){
+    const s = String(v ?? '').trim();
+    if(!s) return 0;
+    const num = Number(s);
+    return Number.isFinite(num) ? Math.floor(num) : 0;
+  }
+  function getVariantId(row){
+    for(const k of VARIANT_ID_CANDIDATES){
+      if(row[k] && String(row[k]).trim()) return String(row[k]).trim();
+    }
+    return '';
+  }
+
+  /** =========================
+   * CSV PARSE (robust)
+   * ========================= */
+  function detectDelimiter(text) {
+    const firstLine = (text.split(/\r?\n/).find(l => l.trim() !== '') || '');
+    const candidates = [',',';','\t','|'];
+    let best = ',', bestCount = -1;
+    for (const d of candidates) {
+      const c = firstLine.split(d).length;
+      if (c > bestCount) { bestCount = c; best = d; }
+    }
+    return best;
+  }
+  function parseCSV(text, delimiter) {
+    const out = [];
+    let i = 0, field = '', row = [], inQuotes = false;
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+
+    while (i < text.length) {
+      const c = text[i];
+      if (c === '"') {
+        if (inQuotes && text[i+1] === '"') { field += '"'; i++; }
+        else { inQuotes = !inQuotes; }
+      } else if (c === delimiter && !inQuotes) {
+        row.push(field); field = '';
+      } else if ((c === '\n' || c === '\r') && !inQuotes) {
+        if (field !== '' || row.length) { row.push(field); out.push(row); row = []; field = ''; }
+        if (c === '\r' && text[i+1] === '\n') i++;
+      } else {
+        field += c;
+      }
+      i++;
+    }
+    if (field !== '' || row.length) { row.push(field); out.push(row); }
+    return out;
+  }
+  function toObjects(matrix) {
+    if (!matrix.length) return [];
+    const headers = (matrix[0] || []).map(h => String(h ?? '').trim());
+    const objects = [];
+    for (let r = 1; r < matrix.length; r++) {
+      const line = matrix[r];
+      if (!line || !line.length) continue;
+      if (line.join('').trim() === '') continue;
+      const obj = {};
+      for (let c = 0; c < headers.length; c++) obj[headers[c]] = (line[c] ?? '').trim();
+      objects.push(obj);
+    }
+    return objects;
+  }
+
+  /** =========================
+   * LOAD CSV
+   * ========================= */
+  async function loadCSV(){
+    setTag(statusTagEl, 'warn', 'Loading…');
+    setTag(modeTagEl, 'warn', 'MODE: —');
+    metaEl.innerHTML = '';
+    try{
+      const url = CSV_URL + '?v=' + Date.now();
+      const res = await fetch(url, { cache: 'no-store' });
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const lastModified = res.headers.get('last-modified');
+      const etag = res.headers.get('etag');
+
+      const text = await res.text();
+      const delim = detectDelimiter(text);
+      rows = toObjects(parseCSV(text, delim));
+
+      const sample = rows[0] || {};
+      const hasBarcode = (COL_BARCODE in sample);
+      const hasBin = (COL_BIN in sample);
+
+      const hasWH = (COL_WH_AV in sample);
+      const hasPLY = (COL_PLY_AV in sample);
+      const hasGH = (COL_GH_AV in sample);
+      const hasCON = (COL_CON_AV in sample);
+
+      metaEl.innerHTML = `
+        <div><strong>CSV:</strong> <span class="mono">${esc(CSV_URL)}</span></div>
+        <div><strong>Server updated:</strong> ${lastModified ? esc(new Date(lastModified).toLocaleString()) : '<span style="color:#7f1d1d;">Unknown</span>'}</div>
+        <div><strong>Loaded:</strong> ${esc(new Date().toLocaleString())}</div>
+        ${etag ? `<div><strong>ETag:</strong> <span class="mono">${esc(etag)}</span></div>` : ''}
+        <div><strong>Rows:</strong> ${rows.length}</div>
+        <div style="margin-top:6px">
+          <strong>Inventory columns:</strong>
+          ${hasWH ? `<span class="tag good">WH</span>` : `<span class="tag warn">WH missing</span>`}
+          ${hasPLY ? `<span class="tag good">PLY</span>` : `<span class="tag warn">PLY missing</span>`}
+          ${hasGH ? `<span class="tag good">GH</span>` : `<span class="tag warn">GH missing</span>`}
+          ${hasCON ? `<span class="tag good">CON</span>` : `<span class="tag warn">CON missing</span>`}
+        </div>
+      `;
+
+      if(!hasBarcode || !hasBin){
+        setTag(statusTagEl,'bad','Missing columns');
+      } else {
+        setTag(statusTagEl,'good','Ready');
+      }
+    }catch(e){
+      rows = [];
+      setTag(statusTagEl,'bad','CSV load failed');
+      metaEl.innerHTML = `<div style="color:#7f1d1d;"><strong>Error:</strong> ${esc(e.message)}</div>`;
+    }
+  }
+
+  function openCSV(){ window.open(CSV_URL, '_blank', 'noopener'); }
+
+  /** =========================
+   * LOG
+   * ========================= */
+  function renderLog(){
+    scanCountEl.textContent = String(logEntries.length);
+    logEl.innerHTML = '';
+    for(let i=0;i<logEntries.length;i++){
+      const e = logEntries[i];
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${esc(new Date(e.ts).toLocaleTimeString())}</td>
+        <td class="mono">${esc(e.type||'')}</td>
+        <td class="mono">${esc(e.bin||'')}</td>
+        <td class="mono">${esc(e.barcode||'')}</td>
+        <td>${esc(e.title||'')}</td>
+        <td><button class="btn" type="button" data-i="${i}">Delete</button></td>
+      `;
+      tr.querySelector('button').addEventListener('click', (ev)=>{
+        const idx = Number(ev.currentTarget.getAttribute('data-i'));
+        if(Number.isFinite(idx)) { logEntries.splice(idx,1); renderLog(); }
+      });
+      logEl.appendChild(tr);
+    }
+  }
+  function clearLog(){ logEntries = []; renderLog(); }
+  function undoLastScan(){ if(!logEntries.length) return; logEntries.shift(); renderLog(); }
+
+  /** =========================
+   * RENDER RESULTS
+   * ========================= */
+  function showNotFound(){
+    setTag(modeTagEl, 'bad', 'MODE: NOT FOUND');
+    resultEl.innerHTML = `
+      <div class="card" style="margin:0;border:1px solid var(--line);box-shadow:none">
+        <span class="modePill bad">NOT FOUND</span>
+        <div class="sub" style="margin-top:10px">
+          Scan a BIN code, product barcode, or SKU again.
+        </div>
+      </div>
     `;
+  }
+
+  function showProductResult(match){
+    setTag(modeTagEl, 'good', 'MODE: PRODUCT');
+
+    const title = match[COL_TITLE] || '';
+    const barcode = match[COL_BARCODE] || '';
+    const sku = match[COL_SKU] || '';
+    const bin = (match[COL_BIN] || '').trim() || '—';
+    const vid = getVariantId(match);
+
+    const wh = nInt(match[COL_WH_AV]);
+    const ply = nInt(match[COL_PLY_AV]);
+    const gh = nInt(match[COL_GH_AV]);
+    const con = nInt(match[COL_CON_AV]);
+
+    resultEl.innerHTML = `
+      <div class="card" style="margin:0;border:1px solid var(--line);box-shadow:none">
+        <span class="modePill product">PRODUCT</span>
+
+        <div class="binBig">${esc(bin)}</div>
+        <div class="titleBig">${esc(title)}</div>
+
+        <div class="subLine">
+          <span>Barcode:</span> <span class="mono">${esc(barcode)}</span>
+          &nbsp; | &nbsp;
+          <span>SKU:</span> <span class="mono">${esc(sku)}</span>
+          ${vid ? `&nbsp; | &nbsp;<span>Variant ID:</span> <span class="mono">${esc(vid)}</span>` : ``}
+        </div>
+
+        <div class="availabilityBlock">
+          <div class="availTitle">Available:</div>
+          <div class="availGrid">
+            <div class="availCell"><span class="lbl">Warehouse</span><span class="val">${esc(wh)}</span></div>
+            <div class="availCell"><span class="lbl">Plymouth</span><span class="val">${esc(ply)}</span></div>
+            <div class="availCell"><span class="lbl">Green Harbor</span><span class="val">${esc(gh)}</span></div>
+            <div class="availCell"><span class="lbl">Container</span><span class="val">${esc(con)}</span></div>
+          </div>
+        </div>
+
+        <div class="sub" style="margin-top:12px">
+          <strong>Meaning:</strong> This product should be in bin <span class="mono">${esc(bin)}</span>.
+        </div>
+      </div>
+    `;
+  }
+
+  function showBinResult(binCode, matches){
+    setTag(modeTagEl, 'warn', 'MODE: BIN');
+
+    const list = [...matches].sort((a,b)=>{
+      const ta = (a[COL_TITLE]||'').toLowerCase();
+      const tb = (b[COL_TITLE]||'').toLowerCase();
+      return ta.localeCompare(tb);
+    });
+
+    // totals (optional)
+    let totalWH = 0, totalPLY = 0, totalGH = 0, totalCON = 0;
+    list.forEach(r=>{
+      totalWH += nInt(r[COL_WH_AV]);
+      totalPLY += nInt(r[COL_PLY_AV]);
+      totalGH += nInt(r[COL_GH_AV]);
+      totalCON += nInt(r[COL_CON_AV]);
+    });
+
+    let html = `
+      <div class="card" style="margin:0;border:1px solid var(--line);box-shadow:none">
+        <span class="modePill bin">BIN</span>
+
+        <div class="binBig">${esc(binCode)}</div>
+
+        <div class="kv">
+          <div class="pill"><strong>Items:</strong> <span class="mono">${esc(list.length)}</span></div>
+          <div class="pill"><strong>Total WH:</strong> <span class="mono">${esc(totalWH)}</span></div>
+          <div class="pill"><strong>Total PLY:</strong> <span class="mono">${esc(totalPLY)}</span></div>
+          <div class="pill"><strong>Total GH:</strong> <span class="mono">${esc(totalGH)}</span></div>
+          <div class="pill"><strong>Total CON:</strong> <span class="mono">${esc(totalCON)}</span></div>
+        </div>
+
+        <div class="sub" style="margin-top:10px">
+          <strong>Meaning:</strong> These are the items the system says are assigned to this bin.
+        </div>
+
+        <div style="margin-top:12px; overflow:auto; max-height:45vh">
+          <table>
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>SKU</th>
+                <th>Barcode</th>
+                <th>Variant ID</th>
+                <th>WH</th>
+                <th>PLY</th>
+                <th>GH</th>
+                <th>CON</th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+
+    for(const r of list){
+      const vid = getVariantId(r) || '';
+      html += `
+        <tr>
+          <td>${esc(r[COL_TITLE]||'')}</td>
+          <td class="mono">${esc(r[COL_SKU]||'')}</td>
+          <td class="mono">${esc(r[COL_BARCODE]||'')}</td>
+          <td class="mono">${esc(vid)}</td>
+          <td class="mono">${esc(nInt(r[COL_WH_AV]))}</td>
+          <td class="mono">${esc(nInt(r[COL_PLY_AV]))}</td>
+          <td class="mono">${esc(nInt(r[COL_GH_AV]))}</td>
+          <td class="mono">${esc(nInt(r[COL_CON_AV]))}</td>
+        </tr>
+      `;
+    }
+
+    html += `
+            </tbody>
+          </table>
+        </div>
+
+        <div class="sub" style="margin-top:12px">
+          <strong>Mismatch tip:</strong> If you scan a BIN and physically see items not listed above, those are “wrong-bin” candidates.
+        </div>
+      </div>
+    `;
+
+    resultEl.innerHTML = html;
+  }
+
+  /** =========================
+   * SMART LOOKUP
+   * ========================= */
+  function smartLookup(q){
+    if(!rows.length){
+      resultEl.innerHTML = `<span class="tag bad">Not ready</span> <span class="sub">Load the CSV first.</span>`;
+      setTag(modeTagEl, 'warn', 'MODE: —');
+      return;
+    }
+
+    const now = Date.now();
+    if (q && lastScan.key === q && (now - lastScan.ts) < DUP_WINDOW_MS){
+      lastScan.ts = now;
+      return;
+    }
+    lastScan = { key:q, ts:now };
+
+    // 1) BIN MODE if any row has this exact bin
+    const binMatches = rows.filter(r => (r[COL_BIN] || '').trim() === q);
+    if(binMatches.length){
+      showBinResult(q, binMatches);
+      logEntries.unshift({
+        ts: now,
+        type: 'BIN',
+        bin: q,
+        barcode: '',
+        title: `${binMatches.length} items`
+      });
+      renderLog();
+      return;
+    }
+
+    // 2) PRODUCT MODE (barcode or sku)
+    const m = rows.find(r =>
+      (r[COL_BARCODE] && r[COL_BARCODE]===q) ||
+      (r[COL_SKU] && r[COL_SKU]===q)
+    );
+
+    if(!m){
+      showNotFound();
+      return;
+    }
+
+    showProductResult(m);
+
+    logEntries.unshift({
+      ts: now,
+      type: 'PRODUCT',
+      bin: m[COL_BIN] || '',
+      barcode: m[COL_BARCODE] || '',
+      title: m[COL_TITLE] || ''
+    });
+    renderLog();
+  }
+
+  /** =========================
+   * INPUT HANDLERS
+   * ========================= */
+  const scanEl = document.getElementById('scan');
+  scanEl.addEventListener('keydown', e=>{
+    if(e.key==='Enter'){
+      const q = scanEl.value.trim();
+      scanEl.value='';
+      if(q) smartLookup(q);
+      setTimeout(()=>scanEl.focus(), 25);
+    }
   });
 
-  html += `</tbody></table>`;
-  document.getElementById('result').innerHTML = html;
-}
+  /** boot */
+  loadCSV();
 
-function handleScan(q){
-  if(!q) return;
-
-  const binMatches = rows.filter(r => (r[COL_BIN]||'').trim() === q);
-  if(binMatches.length){
-    showBin(q, binMatches);
-    return;
+  // service worker (optional)
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('../sw.js').catch(()=>{});
+    });
   }
-
-  const product = rows.find(r =>
-    (r[COL_BARCODE] && r[COL_BARCODE] === q) ||
-    (r[COL_SKU] && r[COL_SKU] === q)
-  );
-
-  if(product){
-    showProduct(product);
-  } else {
-    document.getElementById('result').innerHTML =
-      `<div class="badge bad">Not Found</div>`;
-  }
-}
-
-document.getElementById('scan').addEventListener('keydown', e=>{
-  if(e.key === 'Enter'){
-    const q = e.target.value.trim();
-    e.target.value = '';
-    handleScan(q);
-  }
-});
-
-loadCSV();
 </script>
 
 </body>
