@@ -201,6 +201,14 @@ In <b>Bulk Edit</b>, the user only enters <b>Zone</b> and <b>Starting Bay</b> to
       <div id="binNumDisplay" class="statusBox mono">01</div>
     </div>
 
+    <div class="col bulkOnly">
+      <div class="small">Hold Bin</div>
+      <label class="statusBox" style="gap:10px;cursor:pointer">
+        <input id="holdBin" type="checkbox">
+        <span class="mono">Keep assigning to same bin</span>
+      </label>
+    </div>
+
     <div class="col quickOnly hide">
       <div class="small">WH Bin (exact)</div>
       <input id="quickBinInput" class="code" placeholder="A-03-02-05">
@@ -235,6 +243,7 @@ In <b>Bulk Edit</b>, the user only enters <b>Zone</b> and <b>Starting Bay</b> to
         Mode: BULK<br>
         Zone: —<br>
         Bay: — | Shelf: — | Bin: —<br>
+        Hold Bin: OFF<br>
         Assignments: 0
       </div>
     </div>
@@ -316,7 +325,7 @@ const VARIANT_ID_CANDIDATES = [
 const END_SHELF_CODE = 'LW-END-SHELF';
 const END_BAY_CODE = 'LW-END-BAY';
 
-const STATE_KEY = 'livewell:binassign:v3';
+const STATE_KEY = 'livewell:binassign:v4';
 
 let rows = [];
 let dataLoaded = false;
@@ -463,6 +472,9 @@ function syncStateFromInputs(){
   if(currentShelf < 1) currentShelf = 1;
   if(currentBinNum < 1) currentBinNum = 1;
 }
+function isHoldBinOn(){
+  return !!document.getElementById('holdBin')?.checked;
+}
 function setMode(nextMode){
   mode = nextMode === 'quick' ? 'quick' : 'bulk';
 
@@ -484,7 +496,9 @@ function updateDisplays(){
 
   if(mode === 'bulk'){
     document.getElementById('currentBinSub').textContent =
-      currentZone ? 'Next assignment in Bulk Edit mode' : 'Enter Zone + Starting Bay to begin';
+      currentZone
+        ? (isHoldBinOn() ? 'Hold Bin is ON — next scans stay on this bin' : 'Next assignment in Bulk Edit mode')
+        : 'Enter Zone + Starting Bay to begin';
   } else {
     document.getElementById('currentBinSub').textContent = 'Exact manual bin for Quick Add mode';
   }
@@ -497,6 +511,7 @@ function updateDisplays(){
     `Mode: ${mode.toUpperCase()}<br>` +
     `Zone: ${currentZone || '—'}<br>` +
     `Bay: ${currentZone ? pad2(currentBay) : '—'} | Shelf: ${mode === 'bulk' ? pad2(currentShelf) : '—'} | Bin: ${mode === 'bulk' ? pad2(currentBinNum) : '—'}<br>` +
+    `Hold Bin: ${mode === 'bulk' ? (isHoldBinOn() ? 'ON' : 'OFF') : '—'}<br>` +
     `Assignments: ${assignments.length}`;
 
   document.getElementById('rowCount').textContent = `${assignments.length} row${assignments.length === 1 ? '' : 's'}`;
@@ -587,11 +602,22 @@ function addAssignment(){
     };
 
     assignments.push(entry);
-    currentBinNum += 1;
-    const after = snapshotCounters();
 
-    history.push({ type:'product', entryId: entry.id, before, after });
-    setStatus('Assigned to ' + assignedBin,'ok');
+    const holdBin = isHoldBinOn();
+    if(!holdBin){
+      currentBinNum += 1;
+    }
+
+    const after = snapshotCounters();
+    history.push({
+      type:'product',
+      entryId: entry.id,
+      before,
+      after,
+      holdBin
+    });
+
+    setStatus(holdBin ? ('Assigned to ' + assignedBin + ' (Hold Bin ON)') : ('Assigned to ' + assignedBin),'ok');
     scanEl.value = '';
     updateDisplays();
     render();
@@ -806,7 +832,8 @@ function saveState(){
     zoneInput: document.getElementById('zoneInput').value,
     bayInput: document.getElementById('bayInput').value,
     quickBinInput: document.getElementById('quickBinInput').value,
-    keepSameBin: document.getElementById('keepSameBin').checked
+    keepSameBin: document.getElementById('keepSameBin').checked,
+    holdBin: document.getElementById('holdBin').checked
   };
   localStorage.setItem(STATE_KEY, JSON.stringify(state));
   setDraftStatus('Draft saved');
@@ -834,6 +861,7 @@ function restoreState(){
     document.getElementById('bayInput').value = s.bayInput || pad2(currentBay);
     document.getElementById('quickBinInput').value = s.quickBinInput || '';
     document.getElementById('keepSameBin').checked = s.keepSameBin !== false;
+    document.getElementById('holdBin').checked = !!s.holdBin;
 
     setMode(mode);
     render();
@@ -861,6 +889,10 @@ document.getElementById('zoneInput').addEventListener('input', () => { updateDis
 document.getElementById('bayInput').addEventListener('input', () => { updateDisplays(); saveState(); });
 document.getElementById('quickBinInput').addEventListener('input', () => { updateDisplays(); saveState(); });
 document.getElementById('keepSameBin').addEventListener('change', saveState);
+document.getElementById('holdBin').addEventListener('change', () => {
+  updateDisplays();
+  saveState();
+});
 
 loadCSV();
 setMode('bulk');
