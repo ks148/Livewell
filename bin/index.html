@@ -340,7 +340,8 @@ In <b>Bulk Edit</b>, the user only enters <b>Zone</b> and <b>Starting Bay</b> to
   <div class="row">
     <button class="btn btnDark" onclick="downloadShopifyCSV()">Shopify Bin Upload CSV</button>
     <button class="btn" onclick="downloadWorkingCSV()">Working CSV</button>
-    <button class="btn" onclick="downloadLabelCSV()">Label Print CSV</button>
+    <button class="btn" onclick="downloadProductLabelCSV()">Product Labels CSV</button>
+    <button class="btn" onclick="downloadBinLabelCSV()">Bin Labels CSV</button>
   </div>
 </div>
 
@@ -360,7 +361,7 @@ const VARIANT_ID_CANDIDATES = [
 const END_SHELF_CODE = 'LW-END-SHELF';
 const END_BAY_CODE = 'LW-END-BAY';
 
-const STATE_KEY = 'livewell:binassign:v6';
+const STATE_KEY = 'livewell:binassign:v7';
 
 let rows = [];
 let dataLoaded = false;
@@ -868,12 +869,23 @@ function downloadWorkingCSV(){
   });
   downloadFile(sessionBaseName() + "_WORKING.csv", csv);
 }
-function downloadLabelCSV(){
+function downloadProductLabelCSV(){
   let csv = "sku,title,barcode\n";
   assignments.forEach(a => {
     csv += `${csvEscape(a.sku)},${csvEscape(a.title)},${csvEscape(a.barcode)}\n`;
   });
-  downloadFile(sessionBaseName() + "_LABELS.csv", csv);
+  downloadFile(sessionBaseName() + "_PRODUCT_LABELS.csv", csv);
+}
+function downloadBinLabelCSV(){
+  const seen = new Set();
+  let csv = "bin,barcode\n";
+  assignments.forEach(a => {
+    const bin = String(a.bin || '').trim().toUpperCase();
+    if(!bin || seen.has(bin)) return;
+    seen.add(bin);
+    csv += `${csvEscape(bin)},${csvEscape(bin)}\n`;
+  });
+  downloadFile(sessionBaseName() + "_BIN_LABELS.csv", csv);
 }
 function saveState(){
   const state = {
