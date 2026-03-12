@@ -121,7 +121,7 @@ tbody tr:nth-child(even){background:#f9fafb}
 .mono{font-family:ui-monospace, monospace}
 
 .cellInput{
-  width:100%;min-width:150px;padding:8px 10px;border-radius:10px;
+  width:100%;min-width:112px;max-width:132px;padding:8px 8px;border-radius:10px;
   border:1px solid #cbd5e1;font-weight:900;box-sizing:border-box;
   font-family:ui-monospace, monospace;
 }
@@ -153,13 +153,13 @@ tbody tr:nth-child(even){background:#f9fafb}
 .colNum{width:56px}
 .colVar{width:120px}
 .colBarcode{width:120px}
+.colWhBin{width:128px}
 .colSku{width:100px}
 .colTitle{width:220px}
 .colZone{width:64px}
 .colBay{width:64px}
 .colShelf{width:72px}
 .colBinPos{width:80px}
-.colWhBin{min-width:220px;width:260px}
 .colAction{width:118px}
 
 @media (max-width: 820px){
@@ -167,8 +167,8 @@ tbody tr:nth-child(even){background:#f9fafb}
   .card{padding:12px}
   th,td{padding:8px}
   .colTitle{width:180px}
-  .colWhBin{min-width:260px;width:280px}
-  .cellInput{min-width:240px}
+  .colWhBin{width:136px}
+  .cellInput{min-width:118px;max-width:136px}
   .tableWrap{max-height:55vh}
 }
 </style>
@@ -321,13 +321,13 @@ In <b>Bulk Edit</b>, the user only enters <b>Zone</b> and <b>Starting Bay</b> to
           <th class="colNum">#</th>
           <th class="colVar">Variant ID</th>
           <th class="colBarcode">Barcode</th>
+          <th class="colWhBin">WH Bin</th>
           <th class="colSku">SKU</th>
           <th class="colTitle">Title</th>
           <th class="colZone">Zone</th>
           <th class="colBay">Bay</th>
           <th class="colShelf">Shelf</th>
           <th class="colBinPos">Bin Pos</th>
-          <th class="colWhBin">WH Bin</th>
           <th class="colAction"></th>
         </tr>
       </thead>
@@ -694,19 +694,19 @@ function addAssignment(){
     bin: exactBin
   };
 
-  assignments.push(entry);
-  history.push({ type:'product_quick', entryId: entry.id });
-  setStatus('Assigned to ' + exactBin,'ok');
+    assignments.push(entry);
+    history.push({ type:'product_quick', entryId: entry.id });
+    setStatus('Assigned to ' + exactBin,'ok');
 
-  scanEl.value = '';
-  if(!document.getElementById('keepSameBin').checked){
-    quickBinEl.value = '';
-  }
+    scanEl.value = '';
+    if(!document.getElementById('keepSameBin').checked){
+      quickBinEl.value = '';
+    }
 
-  updateDisplays();
-  render();
-  saveState();
-  scanEl.focus();
+    updateDisplays();
+    render();
+    saveState();
+    scanEl.focus();
 }
 function undoLast(){
   if(!history.length){
@@ -756,13 +756,13 @@ function render(){
       <td class="colNum">${i + 1}</td>
       <td class="mono colVar">${a.variantId || ''}</td>
       <td class="mono colBarcode">${a.barcode || ''}</td>
+      <td class="colWhBin"><input class="cellInput" value="${escapeHtml(a.bin || '')}" onchange="updateBin(${a.id}, this.value)"></td>
       <td class="mono colSku">${a.sku || ''}</td>
       <td class="colTitle">${a.title || ''}</td>
       <td class="mono colZone">${a.zone || ''}</td>
       <td class="mono colBay">${a.bay || ''}</td>
       <td class="mono colShelf">${a.shelf || ''}</td>
       <td class="mono colBinPos">${a.binPos || ''}</td>
-      <td class="colWhBin"><input class="cellInput" value="${escapeHtml(a.bin || '')}" onchange="updateBin(${a.id}, this.value)"></td>
       <td class="colAction">${actionBtn}</td>
     `;
     tbody.appendChild(tr);
