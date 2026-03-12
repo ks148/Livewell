@@ -119,9 +119,21 @@ tbody tr:nth-child(even){background:#f9fafb}
 
 .hide{display:none!important}
 .right{margin-left:auto}
-.metaGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
-.mutedBox{
-  background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:12px
+.metaGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.statusBox{
+  background:#f8fafc;
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px 12px;
+  min-height:44px;
+  display:flex;
+  align-items:center;
+  font-weight:1000;
+  color:#0f172a;
+}
+.statusBox .muted{
+  color:var(--muted);
+  font-weight:900;
 }
 </style>
 </head>
@@ -145,8 +157,8 @@ tbody tr:nth-child(even){background:#f9fafb}
 
 <h1>Bin Assignment</h1>
 <p class="sub">
-Assign warehouse bins in <b>Bulk Edit</b> or <b>Quick Add</b>.  
-This page only builds CSV exports — it does NOT modify Shopify until upload.
+Assign warehouse bins in <b>Bulk Edit</b> or <b>Quick Add</b>.<br>
+In <b>Bulk Edit</b>, the user only enters <b>Zone</b> and <b>Starting Bay</b> to begin the session.
 </p>
 
 <div class="card">
@@ -180,13 +192,13 @@ This page only builds CSV exports — it does NOT modify Shopify until upload.
     </div>
 
     <div class="col bulkOnly">
-      <div class="small">Current Shelf</div>
-      <input id="shelfDisplay" class="sm mono" readonly>
+      <div class="small">Shelf (auto)</div>
+      <div id="shelfDisplay" class="statusBox mono">01</div>
     </div>
 
     <div class="col bulkOnly">
-      <div class="small">Current Bin #</div>
-      <input id="binNumDisplay" class="sm mono" readonly>
+      <div class="small">Next Bin (auto)</div>
+      <div id="binNumDisplay" class="statusBox mono">01</div>
     </div>
 
     <div class="col quickOnly hide">
@@ -296,7 +308,6 @@ const CSV_URL = '../pickle-data.csv';
 const COL_BARCODE = 'Variant Barcode';
 const COL_SKU = 'Variant SKU';
 const COL_TITLE = 'Title';
-const COL_BIN = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
 
 const VARIANT_ID_CANDIDATES = [
   'Variant ID','Variant Id','variant_id','variant id'
@@ -305,7 +316,7 @@ const VARIANT_ID_CANDIDATES = [
 const END_SHELF_CODE = 'LW-END-SHELF';
 const END_BAY_CODE = 'LW-END-BAY';
 
-const STATE_KEY = 'livewell:binassign:v2';
+const STATE_KEY = 'livewell:binassign:v3';
 
 let rows = [];
 let dataLoaded = false;
@@ -342,8 +353,7 @@ function setStatus(text, kind='info'){
   el.className = 'badge ' + kind;
 }
 function setDraftStatus(text){
-  const el = document.getElementById('draftStatus');
-  el.textContent = text;
+  document.getElementById('draftStatus').textContent = text;
 }
 function getVariantId(row){
   for(const k of VARIANT_ID_CANDIDATES){
@@ -424,7 +434,7 @@ function buildWhBin(zone, bay, shelf, binNum){
 }
 function currentBinString(){
   if(mode === 'quick'){
-    return String(document.getElementById('quickBinInput').value || '').trim() || '—';
+    return String(document.getElementById('quickBinInput').value || '').trim().toUpperCase() || '—';
   }
   if(!currentZone) return '—';
   return buildWhBin(currentZone, currentBay, currentShelf, currentBinNum);
@@ -468,16 +478,15 @@ function setMode(nextMode){
 function updateDisplays(){
   syncStateFromInputs();
 
-  document.getElementById('shelfDisplay').value = pad2(currentShelf);
-  document.getElementById('binNumDisplay').value = pad2(currentBinNum);
+  document.getElementById('shelfDisplay').textContent = pad2(currentShelf);
+  document.getElementById('binNumDisplay').textContent = pad2(currentBinNum);
   document.getElementById('currentBinDisplay').textContent = currentBinString();
 
   if(mode === 'bulk'){
     document.getElementById('currentBinSub').textContent =
       currentZone ? 'Next assignment in Bulk Edit mode' : 'Enter Zone + Starting Bay to begin';
   } else {
-    document.getElementById('currentBinSub').textContent =
-      'Exact manual bin for Quick Add mode';
+    document.getElementById('currentBinSub').textContent = 'Exact manual bin for Quick Add mode';
   }
 
   const last = assignments[assignments.length - 1];
@@ -509,7 +518,7 @@ function addAssignment(){
   if(mode === 'bulk'){
     if(!currentZone){
       alert('Enter Zone first.');
-      scanEl.focus();
+      document.getElementById('zoneInput').focus();
       return;
     }
     if(!document.getElementById('bayInput').value.trim()){
@@ -519,6 +528,7 @@ function addAssignment(){
     }
 
     const upper = scan.toUpperCase();
+
     if(upper === END_SHELF_CODE){
       const before = snapshotCounters();
       currentShelf += 1;
@@ -590,7 +600,6 @@ function addAssignment(){
     return;
   }
 
-  // QUICK ADD
   const exactBin = String(quickBinEl.value || '').trim().toUpperCase();
   if(!exactBin){
     alert('Enter WH Bin first in Quick Add mode.');
@@ -736,8 +745,8 @@ function stamp(){
 }
 function sessionBaseName(){
   const s = stamp();
-  const z = currentZone || 'ZONE';
-  const b = pad2(currentBay || 1);
+  const z = currentZone || (assignments[0]?.zone || 'ZONE');
+  const b = pad2(currentBay || assignments[0]?.bay || 1);
   return `BIN_ASSIGN_${z}_BAY${b}_${s.date}_${s.time}`;
 }
 function downloadFile(name, text){
