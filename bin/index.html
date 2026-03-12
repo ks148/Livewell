@@ -360,7 +360,7 @@ const VARIANT_ID_CANDIDATES = [
 const END_SHELF_CODE = 'LW-END-SHELF';
 const END_BAY_CODE = 'LW-END-BAY';
 
-const STATE_KEY = 'livewell:binassign:v5';
+const STATE_KEY = 'livewell:binassign:v6';
 
 let rows = [];
 let dataLoaded = false;
@@ -694,19 +694,19 @@ function addAssignment(){
     bin: exactBin
   };
 
-    assignments.push(entry);
-    history.push({ type:'product_quick', entryId: entry.id });
-    setStatus('Assigned to ' + exactBin,'ok');
+  assignments.push(entry);
+  history.push({ type:'product_quick', entryId: entry.id });
+  setStatus('Assigned to ' + exactBin,'ok');
 
-    scanEl.value = '';
-    if(!document.getElementById('keepSameBin').checked){
-      quickBinEl.value = '';
-    }
+  scanEl.value = '';
+  if(!document.getElementById('keepSameBin').checked){
+    quickBinEl.value = '';
+  }
 
-    updateDisplays();
-    render();
-    saveState();
-    scanEl.focus();
+  updateDisplays();
+  render();
+  saveState();
+  scanEl.focus();
 }
 function undoLast(){
   if(!history.length){
@@ -869,10 +869,9 @@ function downloadWorkingCSV(){
   downloadFile(sessionBaseName() + "_WORKING.csv", csv);
 }
 function downloadLabelCSV(){
-  let csv = "label_type,line1,line2,barcode\n";
+  let csv = "sku,title,barcode\n";
   assignments.forEach(a => {
-    if(a.bin) csv += `BIN,${csvEscape(a.bin)},WH,${csvEscape(a.bin)}\n`;
-    csv += `ITEM,${csvEscape(a.title)},${csvEscape('SKU: ' + (a.sku || ''))},${csvEscape(a.barcode)}\n`;
+    csv += `${csvEscape(a.sku)},${csvEscape(a.title)},${csvEscape(a.barcode)}\n`;
   });
   downloadFile(sessionBaseName() + "_LABELS.csv", csv);
 }
