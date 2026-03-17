@@ -194,7 +194,7 @@ tbody tr:nth-child(even){background:#f9fafb}
 <h1>Bin Assignment</h1>
 <p class="sub">
 Assign warehouse bins in <b>Bulk Edit</b> or <b>Quick Add</b>.<br>
-In <b>Bulk Edit</b>, the user only enters <b>Zone</b> and <b>Starting Bay</b> to begin the session.
+In <b>Bulk Edit</b>, the user can set <b>Zone</b>, <b>Bay</b>, <b>Shelf</b>, and <b>Bin #</b> at any time.
 </p>
 
 <div class="card">
@@ -228,13 +228,13 @@ In <b>Bulk Edit</b>, the user only enters <b>Zone</b> and <b>Starting Bay</b> to
     </div>
 
     <div class="col bulkOnly">
-      <div class="small">Shelf (auto)</div>
-      <div id="shelfDisplay" class="statusBox mono">01</div>
+      <div class="small">Shelf</div>
+      <input id="shelfInput" class="sm mono" placeholder="01">
     </div>
 
     <div class="col bulkOnly">
-      <div class="small">Next Bin (auto)</div>
-      <div id="binNumDisplay" class="statusBox mono">01</div>
+      <div class="small">Bin #</div>
+      <input id="binNumInput" class="sm mono" placeholder="01">
     </div>
 
     <div class="col bulkOnly">
@@ -264,7 +264,7 @@ In <b>Bulk Edit</b>, the user only enters <b>Zone</b> and <b>Starting Bay</b> to
     <div class="kpi">
       <div class="label">CURRENT BIN</div>
       <div class="value mono" id="currentBinDisplay">—</div>
-      <div class="subv" id="currentBinSub">Enter Zone + Starting Bay to begin</div>
+      <div class="subv" id="currentBinSub">Enter Zone + Bay to begin</div>
     </div>
 
     <div class="kpi">
@@ -361,7 +361,7 @@ const VARIANT_ID_CANDIDATES = [
 const END_SHELF_CODE = 'LW-END-SHELF';
 const END_BAY_CODE = 'LW-END-BAY';
 
-const STATE_KEY = 'livewell:binassign:v7';
+const STATE_KEY = 'livewell:binassign:v8';
 
 let rows = [];
 let dataLoaded = false;
@@ -477,11 +477,23 @@ function findRow(q){
 function buildWhBin(zone, bay, shelf, binNum){
   return `${String(zone).trim().toUpperCase()}-${pad2(bay)}-${pad2(shelf)}-${pad2(binNum)}`;
 }
+function syncInputsFromState(){
+  document.getElementById('zoneInput').value = currentZone || '';
+  document.getElementById('bayInput').value = pad2(currentBay);
+  document.getElementById('shelfInput').value = pad2(currentShelf);
+  document.getElementById('binNumInput').value = pad2(currentBinNum);
+}
+function syncStateFromInputs(){
+  currentZone = String(document.getElementById('zoneInput').value || '').trim().toUpperCase();
+  currentBay = Math.max(1, n(document.getElementById('bayInput').value || 1) || 1);
+  currentShelf = Math.max(1, n(document.getElementById('shelfInput').value || 1) || 1);
+  currentBinNum = Math.max(1, n(document.getElementById('binNumInput').value || 1) || 1);
+}
 function currentBinString(){
   if(mode === 'quick'){
     return String(document.getElementById('quickBinInput').value || '').trim().toUpperCase() || '—';
   }
-  if(!currentZone) return '—';
+  if(!currentZone || !currentBay) return '—';
   return buildWhBin(currentZone, currentBay, currentShelf, currentBinNum);
 }
 function snapshotCounters(){
@@ -497,16 +509,6 @@ function restoreCounters(s){
   currentBay = Number(s.bay || 1);
   currentShelf = Number(s.shelf || 1);
   currentBinNum = Number(s.binNum || 1);
-}
-function syncInputsFromState(){
-  document.getElementById('zoneInput').value = currentZone || '';
-  document.getElementById('bayInput').value = pad2(currentBay);
-}
-function syncStateFromInputs(){
-  currentZone = String(document.getElementById('zoneInput').value || '').trim().toUpperCase();
-  currentBay = Math.max(1, n(document.getElementById('bayInput').value || 1) || 1);
-  if(currentShelf < 1) currentShelf = 1;
-  if(currentBinNum < 1) currentBinNum = 1;
 }
 function isHoldBinOn(){
   return !!document.getElementById('holdBin')?.checked;
@@ -525,16 +527,15 @@ function setMode(nextMode){
 }
 function updateDisplays(){
   syncStateFromInputs();
+  syncInputsFromState();
 
-  document.getElementById('shelfDisplay').textContent = pad2(currentShelf);
-  document.getElementById('binNumDisplay').textContent = pad2(currentBinNum);
   document.getElementById('currentBinDisplay').textContent = currentBinString();
 
   if(mode === 'bulk'){
     document.getElementById('currentBinSub').textContent =
-      currentZone
+      currentZone && currentBay
         ? (isHoldBinOn() ? 'Hold Bin is ON — next scans stay on this bin' : 'Next assignment in Bulk Edit mode')
-        : 'Enter Zone + Starting Bay to begin';
+        : 'Enter Zone + Bay to begin';
   } else {
     document.getElementById('currentBinSub').textContent = 'Exact manual bin for Quick Add mode';
   }
@@ -573,7 +574,7 @@ function addAssignment(){
       return;
     }
     if(!document.getElementById('bayInput').value.trim()){
-      alert('Enter Starting Bay first.');
+      alert('Enter Bay first.');
       document.getElementById('bayInput').focus();
       return;
     }
@@ -606,7 +607,6 @@ function addAssignment(){
       history.push({ type:'control', control:'end_bay', before, after });
       setStatus('END OF BAY recorded','info');
       scanEl.value = '';
-      syncInputsFromState();
       updateDisplays();
       render();
       saveState();
@@ -723,13 +723,12 @@ function undoLast(){
     if(last.before) restoreCounters(last.before);
   } else if(last.type === 'control'){
     restoreCounters(last.before);
-    syncInputsFromState();
   }
 
-  setStatus('Last action undone','warn');
   updateDisplays();
   render();
   saveState();
+  setStatus('Last action undone','warn');
   document.getElementById('assignScan').focus();
 }
 function removeRow(id){
@@ -785,16 +784,13 @@ function updateBin(id, value){
 
   const isLastRow = assignments.length && assignments[assignments.length - 1].id === id;
 
-  if(mode === 'bulk' && isLastRow && a.zone && a.bay && a.shelf && a.binPos){
+  if(isLastRow && a.zone && a.bay && a.shelf && a.binPos){
     currentZone = a.zone;
     currentBay = Math.max(1, n(a.bay) || 1);
     currentShelf = Math.max(1, n(a.shelf) || 1);
-
     const editedBinPos = Math.max(1, n(a.binPos) || 1);
     currentBinNum = isHoldBinOn() ? editedBinPos : editedBinPos + 1;
-
-    syncInputsFromState();
-    setStatus('Last row bin updated — counter adjusted','info');
+    setStatus('Last row bin updated — counters adjusted','info');
   } else {
     setStatus('WH Bin updated','info');
   }
@@ -820,19 +816,10 @@ function escapeHtml(s){
     .replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;');
 }
-function stamp(){
-  const d = new Date();
-  const p = x => String(x).padStart(2,'0');
-  return {
-    date: `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`,
-    time: `${p(d.getHours())}${p(d.getMinutes())}`
-  };
-}
-function sessionBaseName(){
-  const s = stamp();
-  const z = currentZone || (assignments[0]?.zone || 'ZONE');
+function currentZoneBayForFiles(){
+  const z = String(currentZone || assignments[0]?.zone || 'ZONE').trim().toUpperCase() || 'ZONE';
   const b = pad2(currentBay || assignments[0]?.bay || 1);
-  return `BIN_ASSIGN_${z}_BAY${b}_${s.date}_${s.time}`;
+  return { z, b };
 }
 function downloadFile(name, text){
   const blob = new Blob([text], {type:'text/csv;charset=utf-8;'});
@@ -850,7 +837,8 @@ function downloadShopifyCSV(){
       csv += `${csvEscape(a.variantId)},${csvEscape(a.bin)}\n`;
     }
   });
-  downloadFile(sessionBaseName() + "_SHOPIFY.csv", csv);
+  const { z, b } = currentZoneBayForFiles();
+  downloadFile(`SHOPIFY-${z}-${b}.csv`, csv);
 }
 function downloadWorkingCSV(){
   let csv = "zone,bay,shelf,bin_position,wh_bin,variant_id,barcode,sku,title\n";
@@ -867,14 +855,16 @@ function downloadWorkingCSV(){
       csvEscape(a.title)
     ].join(',') + "\n";
   });
-  downloadFile(sessionBaseName() + "_WORKING.csv", csv);
+  const { z, b } = currentZoneBayForFiles();
+  downloadFile(`WORKING-${z}-${b}.csv`, csv);
 }
 function downloadProductLabelCSV(){
   let csv = "sku,title,barcode\n";
   assignments.forEach(a => {
     csv += `${csvEscape(a.sku)},${csvEscape(a.title)},${csvEscape(a.barcode)}\n`;
   });
-  downloadFile(sessionBaseName() + "_PRODUCT_LABELS.csv", csv);
+  const { z, b } = currentZoneBayForFiles();
+  downloadFile(`PRODUCT-${z}-${b}.csv`, csv);
 }
 function downloadBinLabelCSV(){
   const seen = new Set();
@@ -885,7 +875,8 @@ function downloadBinLabelCSV(){
     seen.add(bin);
     csv += `${csvEscape(bin)},${csvEscape(bin)}\n`;
   });
-  downloadFile(sessionBaseName() + "_BIN_LABELS.csv", csv);
+  const { z, b } = currentZoneBayForFiles();
+  downloadFile(`BIN-${z}-${b}.csv`, csv);
 }
 function saveState(){
   const state = {
@@ -899,6 +890,8 @@ function saveState(){
     currentBinNum,
     zoneInput: document.getElementById('zoneInput').value,
     bayInput: document.getElementById('bayInput').value,
+    shelfInput: document.getElementById('shelfInput').value,
+    binNumInput: document.getElementById('binNumInput').value,
     quickBinInput: document.getElementById('quickBinInput').value,
     keepSameBin: document.getElementById('keepSameBin').checked,
     holdBin: document.getElementById('holdBin').checked
@@ -927,6 +920,8 @@ function restoreState(){
 
     document.getElementById('zoneInput').value = s.zoneInput || currentZone || '';
     document.getElementById('bayInput').value = s.bayInput || pad2(currentBay);
+    document.getElementById('shelfInput').value = s.shelfInput || pad2(currentShelf);
+    document.getElementById('binNumInput').value = s.binNumInput || pad2(currentBinNum);
     document.getElementById('quickBinInput').value = s.quickBinInput || '';
     document.getElementById('keepSameBin').checked = s.keepSameBin !== false;
     document.getElementById('holdBin').checked = !!s.holdBin;
@@ -953,8 +948,11 @@ document.getElementById('quickBinInput').addEventListener('keydown', e => {
     document.getElementById('assignScan').focus();
   }
 });
+
 document.getElementById('zoneInput').addEventListener('input', () => { updateDisplays(); saveState(); });
 document.getElementById('bayInput').addEventListener('input', () => { updateDisplays(); saveState(); });
+document.getElementById('shelfInput').addEventListener('input', () => { updateDisplays(); saveState(); });
+document.getElementById('binNumInput').addEventListener('input', () => { updateDisplays(); saveState(); });
 document.getElementById('quickBinInput').addEventListener('input', () => { updateDisplays(); saveState(); });
 document.getElementById('keepSameBin').addEventListener('change', saveState);
 document.getElementById('holdBin').addEventListener('change', () => {
