@@ -42,6 +42,7 @@
 
   h1{margin:6px 0 6px;font-size:44px;letter-spacing:-.5px}
   h2{margin:0;font-size:18px}
+  h3{margin:0 0 10px;font-size:16px}
   .sub{margin:6px 0 0;color:var(--muted);font-size:14px;line-height:1.35}
 
   .card{
@@ -64,7 +65,7 @@
   .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
   .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace}
 
-  /* Scan box: FIXED so it stays inside the white card */
+  /* Scan box */
   .scanWrap{width:100%; margin-top:10px}
   input.big{
     width:100%;
@@ -139,13 +140,96 @@
     padding:10px 12px;border-radius:14px;border:1px dashed #cbd5e1;background:#f8fafc;
     margin-bottom:10px;
   }
+
+  .modeToggle{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top:14px;
+  }
+  .modeOption{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:10px 12px;
+    border:1px solid var(--line);
+    border-radius:12px;
+    background:#fff;
+    font-weight:900;
+  }
+
+  .verifyPanel{
+    margin-top:14px;
+    padding:14px;
+    border:1px dashed #cbd5e1;
+    border-radius:14px;
+    background:#f8fafc;
+  }
+
+  .verifyFields{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:10px;
+    margin-top:10px;
+  }
+  @media(min-width:740px){
+    .verifyFields{grid-template-columns:repeat(2, 1fr)}
+  }
+
+  .verifyField{
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:12px;
+  }
+  .verifyLabel{
+    font-size:12px;
+    color:var(--muted);
+    font-weight:1000;
+    margin-bottom:6px;
+    text-transform:uppercase;
+    letter-spacing:.4px;
+  }
+  .verifyValue{
+    min-height:30px;
+    font-size:22px;
+    font-weight:1100;
+    word-break:break-word;
+  }
+
+  .verifyStep{
+    margin-top:10px;
+    font-size:14px;
+    color:var(--muted);
+    font-weight:1000;
+  }
+
+  .verifyStatus{
+    margin-top:10px;
+    padding:14px 16px;
+    border-radius:14px;
+    border:1px solid var(--line);
+    background:#fff;
+    font-size:22px;
+    font-weight:1100;
+  }
+  .verifyStatus.neutral{background:#f8fafc;color:#0f172a;border-color:#cbd5e1}
+  .verifyStatus.good{background:var(--goodbg);color:var(--good);border-color:#86efac}
+  .verifyStatus.bad{background:var(--badbg);color:var(--bad);border-color:#fecaca}
+  .verifyStatus.warn{background:var(--warnbg);color:var(--warn);border-color:#fed7aa}
+
+  .verifyDetails{
+    margin-top:8px;
+    font-size:14px;
+    color:var(--muted);
+    line-height:1.35;
+    min-height:20px;
+  }
 </style>
 </head>
 
 <body>
 <div class="wrap">
-
- 
 
   <!-- HEADER + SCAN -->
   <div class="card">
@@ -153,16 +237,54 @@
       <div>
         <h1>Bin Checker</h1>
         <div class="sub">
-          Scan <strong>ITEM</strong> → see bin + availability. Scan <strong>BIN</strong> → see what belongs there.
+          Lookup mode: scan <strong>ITEM</strong> → see bin + availability. Scan <strong>BIN</strong> → see what belongs there.<br>
+          Verify mode: scan <strong>BIN</strong>, then scan <strong>ITEM</strong> → confirm it is the correct item in the correct bin.
         </div>
       </div>
       <div class="row" style="gap:8px;align-items:center">
         <span id="lookupStatus" class="tag warn">Loading…</span>
-        <span id="modeBadge" class="tag warn">MODE: —</span>
+        <span id="modeBadge" class="tag warn">MODE: LOOKUP</span>
       </div>
     </div>
 
     <div id="meta" class="sub" style="margin-top:10px"></div>
+
+    <div class="modeToggle">
+      <label class="modeOption">
+        <input type="radio" name="appMode" value="lookup" checked>
+        Lookup
+      </label>
+      <label class="modeOption">
+        <input type="radio" name="appMode" value="verify">
+        Verify Bin
+      </label>
+    </div>
+
+    <div id="verifyPanel" class="verifyPanel" style="display:none;">
+      <h3>Verify Bin</h3>
+      <div class="sub" style="margin-top:0;">
+        Fast location checking: scan a bin, then scan the item in that bin.
+      </div>
+
+      <div class="verifyFields">
+        <div class="verifyField">
+          <div class="verifyLabel">Scanned Bin</div>
+          <div id="verifyBinDisplay" class="verifyValue mono">—</div>
+        </div>
+        <div class="verifyField">
+          <div class="verifyLabel">Scanned Item</div>
+          <div id="verifyItemDisplay" class="verifyValue mono">—</div>
+        </div>
+      </div>
+
+      <div id="verifyStep" class="verifyStep">Waiting for bin scan.</div>
+      <div id="verifyStatus" class="verifyStatus neutral">Ready</div>
+      <div id="verifyDetails" class="verifyDetails"></div>
+
+      <div class="row" style="margin-top:12px;">
+        <button class="btn" type="button" id="verifyResetBtn">Reset Verify</button>
+      </div>
+    </div>
 
     <div class="scanWrap">
       <input id="scan" class="big" placeholder="Scan BIN or ITEM barcode + Enter" autofocus autocomplete="off" inputmode="none" />
@@ -226,27 +348,35 @@
   const COL_TITLE   = 'Title';
   const COL_BIN     = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
 
-  // Availability columns (as requested)
-  const COL_AV_WH  = 'Inventory Available: Warehouse-66';
-  const COL_AV_PLY = 'Inventory Available: Plymouth';
-  const COL_AV_GH  = 'Inventory Available: Green Harbor';
+  // Availability columns
+  const COL_AV_WH   = 'Inventory Available: Warehouse-66';
+  const COL_AV_PLY  = 'Inventory Available: Plymouth';
+  const COL_AV_GH   = 'Inventory Available: Green Harbor';
   const COL_AV_CONT = 'Inventory Available: Container - PLY';
 
-  // Variant ID candidates (optional display)
+  // Variant ID candidates
   const VARIANT_ID_CANDIDATES = [
     'Variant ID','Variant Id','variant_id','variant id','VariantID','Variant: ID','Variant: Id'
   ];
 
-  // Duplicate scan guard (scanner double-fire)
+  // Duplicate scan guard
   const DUP_WINDOW_MS = 350;
+  const VERIFY_RESET_DELAY_MS = 1200;
 
   /** =========================
    * STATE
    * ========================= */
   let rows = [];
-  let logEntries = []; // {ts, type, scanned, bin, title}
-
+  let logEntries = [];
   let lastScan = { key:'', ts:0 };
+
+  let appMode = 'lookup';
+  let verifyState = {
+    waitingFor: 'bin',
+    bin: '',
+    item: '',
+    lockUntil: 0
+  };
 
   /** =========================
    * ELEMENTS
@@ -258,6 +388,15 @@
   const lookupStatusEl = document.getElementById('lookupStatus');
   const modeBadgeEl = document.getElementById('modeBadge');
   const scanEl = document.getElementById('scan');
+
+  const appModeEls = document.querySelectorAll('input[name="appMode"]');
+  const verifyPanelEl = document.getElementById('verifyPanel');
+  const verifyBinDisplayEl = document.getElementById('verifyBinDisplay');
+  const verifyItemDisplayEl = document.getElementById('verifyItemDisplay');
+  const verifyStepEl = document.getElementById('verifyStep');
+  const verifyStatusEl = document.getElementById('verifyStatus');
+  const verifyDetailsEl = document.getElementById('verifyDetails');
+  const verifyResetBtnEl = document.getElementById('verifyResetBtn');
 
   /** =========================
    * HELPERS
@@ -285,8 +424,11 @@
     }
     return '';
   }
+  function normalizeValue(v){
+    return String(v ?? '').trim().toUpperCase();
+  }
 
-  /** Robust delimiter detection + CSV parse (quotes safe) */
+  /** Robust delimiter detection + CSV parse */
   function detectDelimiter(text) {
     const firstLine = (text.split(/\r?\n/).find(l => l.trim() !== '') || '');
     const candidates = [',',';','\t','|'];
@@ -336,11 +478,70 @@
   }
 
   /** =========================
+   * AUDIO
+   * ========================= */
+  function createAudioContext() {
+    return new (window.AudioContext || window.webkitAudioContext)();
+  }
+
+  function playGoodBeep() {
+    try {
+      const ctx = createAudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sawtooth';
+      gain.gain.value = 0.08;
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      const start = ctx.currentTime;
+      osc.frequency.setValueAtTime(600, start);
+      osc.frequency.linearRampToValueAtTime(1200, start + 0.15);
+      osc.frequency.linearRampToValueAtTime(800, start + 0.30);
+      osc.frequency.linearRampToValueAtTime(1400, start + 0.45);
+
+      osc.start();
+
+      setTimeout(() => {
+        try { osc.stop(); } catch(_) {}
+        ctx.close().catch(()=>{});
+      }, 500);
+    } catch(_) {}
+  }
+
+  function playBadBeep() {
+    try {
+      const ctx = createAudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'square';
+      gain.gain.value = 0.10;
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      const start = ctx.currentTime;
+      osc.frequency.setValueAtTime(400, start);
+      osc.frequency.exponentialRampToValueAtTime(120, start + 0.25);
+
+      osc.start();
+
+      setTimeout(() => {
+        try { osc.stop(); } catch(_) {}
+        ctx.close().catch(()=>{});
+      }, 300);
+    } catch(_) {}
+  }
+
+  /** =========================
    * LOAD CSV
    * ========================= */
   async function loadCSV(){
     setTag(lookupStatusEl, 'warn', 'Loading…');
-    setTag(modeBadgeEl, 'warn', 'MODE: —');
+    setModeBadge();
     metaEl.innerHTML = '';
 
     try{
@@ -406,19 +607,18 @@
   }
 
   /** =========================
-   * LOOKUP
+   * LOOKUP MODE
    * ========================= */
   function findProductByScan(q){
     if(!rows.length) return null;
+    const nq = normalizeValue(q);
     return rows.find(r =>
-      (r[COL_BARCODE] && String(r[COL_BARCODE]).trim() === q) ||
-      (r[COL_SKU] && String(r[COL_SKU]).trim() === q)
+      normalizeValue(r[COL_BARCODE]) === nq ||
+      normalizeValue(r[COL_SKU]) === nq
     ) || null;
   }
 
   function showProductResult(m){
-    setTag(modeBadgeEl, 'good', 'MODE: PRODUCT');
-
     const vid = getVariantId(m);
     const bin = (m[COL_BIN] || '').trim() || '—';
 
@@ -456,8 +656,6 @@
   }
 
   function showBinResult(binCode, matches){
-    setTag(modeBadgeEl, 'warn', 'MODE: BIN');
-
     const list = [...matches].sort((a,b)=>{
       const ta = (a[COL_TITLE]||'').toLowerCase();
       const tb = (b[COL_TITLE]||'').toLowerCase();
@@ -507,7 +705,7 @@
       </div>
 
       <div class="sub" style="margin-top:10px">
-        <strong>Tip:</strong> If you scan a BIN and physically see items that are not in this list, those are “wrong-bin” candidates.
+        <strong>Tip:</strong> If you scan a BIN and physically see items that are not in this list, those are wrong-bin candidates.
       </div>
     `;
 
@@ -516,20 +714,20 @@
 
   function smartLookup(q){
     if(!rows.length){
-      setTag(modeBadgeEl, 'warn', 'MODE: —');
       resultEl.innerHTML = `<span class="tag bad">Not ready</span> <span class="sub">CSV not loaded.</span>`;
       return;
     }
 
     const now = Date.now();
-    if (q && lastScan.key === q && (now - lastScan.ts) < DUP_WINDOW_MS){
+    if (q && lastScan.key === `lookup:${q}` && (now - lastScan.ts) < DUP_WINDOW_MS){
       lastScan.ts = now;
       return;
     }
-    lastScan = { key:q, ts:now };
+    lastScan = { key:`lookup:${q}`, ts:now };
 
-    // BIN MODE (exact match on bin code)
-    const binMatches = rows.filter(r => (r[COL_BIN] || '').trim() === q);
+    const normQ = normalizeValue(q);
+
+    const binMatches = rows.filter(r => normalizeValue(r[COL_BIN]) === normQ);
     if(binMatches.length){
       showBinResult(q, binMatches);
 
@@ -544,10 +742,8 @@
       return;
     }
 
-    // PRODUCT MODE (barcode or sku)
     const m = findProductByScan(q);
     if(!m){
-      setTag(modeBadgeEl, 'bad', 'MODE: NOT FOUND');
       resultEl.innerHTML = `<span class="tag bad">Not found</span> <span class="sub">Scan a BIN code, barcode, or SKU again.</span>`;
 
       logEntries.unshift({
@@ -574,22 +770,183 @@
   }
 
   /** =========================
+   * VERIFY MODE
+   * ========================= */
+  function setModeBadge(){
+    if(appMode === 'verify'){
+      setTag(modeBadgeEl, 'warn', 'MODE: VERIFY BIN');
+    } else {
+      setTag(modeBadgeEl, 'warn', 'MODE: LOOKUP');
+    }
+  }
+
+  function setVerifyStatus(kind, text){
+    verifyStatusEl.className = 'verifyStatus ' + (kind || 'neutral');
+    verifyStatusEl.textContent = text;
+  }
+
+  function resetVerifyMode(){
+    verifyState.waitingFor = 'bin';
+    verifyState.bin = '';
+    verifyState.item = '';
+    verifyState.lockUntil = 0;
+
+    verifyBinDisplayEl.textContent = '—';
+    verifyItemDisplayEl.textContent = '—';
+    verifyStepEl.textContent = 'Waiting for bin scan.';
+    setVerifyStatus('neutral', 'Ready');
+    verifyDetailsEl.textContent = '';
+  }
+
+  function setAppMode(mode){
+    appMode = mode === 'verify' ? 'verify' : 'lookup';
+    verifyPanelEl.style.display = appMode === 'verify' ? 'block' : 'none';
+    setModeBadge();
+    resetVerifyMode();
+    scanEl.placeholder = appMode === 'verify'
+      ? 'Verify mode: scan BIN, then ITEM + Enter'
+      : 'Scan BIN or ITEM barcode + Enter';
+    setTimeout(()=>scanEl.focus(), 25);
+  }
+
+  function findProductRowsByScan(q){
+    const nq = normalizeValue(q);
+    return rows.filter(r =>
+      normalizeValue(r[COL_BARCODE]) === nq ||
+      normalizeValue(r[COL_SKU]) === nq
+    );
+  }
+
+  function logVerifyResult(type, scanned, bin, title){
+    logEntries.unshift({
+      ts: Date.now(),
+      type,
+      scanned,
+      bin,
+      title
+    });
+    renderLog();
+  }
+
+  function verifyBinItem(binCode, itemCode){
+    const normBin = normalizeValue(binCode);
+    const matches = findProductRowsByScan(itemCode);
+
+    if(!matches.length){
+      setVerifyStatus('warn', 'Item not found');
+      verifyDetailsEl.textContent = `Scanned item ${itemCode} is not in the loaded file.`;
+      playBadBeep();
+      logVerifyResult('VERIFY_ITEM_NOT_FOUND', itemCode, binCode, 'Item not found in CSV');
+      return;
+    }
+
+    const exact = matches.find(r => normalizeValue(r[COL_BIN]) === normBin);
+
+    if(exact){
+      const title = (exact[COL_TITLE] || '').trim();
+      setVerifyStatus('good', 'Correct item in correct bin');
+      verifyDetailsEl.textContent = title
+        ? `${title} belongs in ${binCode}.`
+        : `Item ${itemCode} belongs in ${binCode}.`;
+      playGoodBeep();
+      logVerifyResult('VERIFY_OK', itemCode, binCode, title || 'Correct item in correct bin');
+      return;
+    }
+
+    const expectedBins = [...new Set(
+      matches
+        .map(r => String(r[COL_BIN] || '').trim())
+        .filter(Boolean)
+    )];
+
+    setVerifyStatus('bad', 'Wrong bin');
+    verifyDetailsEl.textContent = expectedBins.length
+      ? `Item ${itemCode} does not belong in ${binCode}. Expected: ${expectedBins.join(', ')}`
+      : `Item ${itemCode} was found, but no assigned bin was available in the file.`;
+    playBadBeep();
+    logVerifyResult('VERIFY_WRONG_BIN', itemCode, binCode, expectedBins.length ? `Expected ${expectedBins.join(', ')}` : 'No assigned bin');
+  }
+
+  function handleVerifyScan(q){
+    if(!rows.length){
+      setVerifyStatus('bad', 'Not ready');
+      verifyDetailsEl.textContent = 'CSV not loaded.';
+      return;
+    }
+
+    const now = Date.now();
+    if(now < verifyState.lockUntil) return;
+
+    if (q && lastScan.key === `verify:${q}:${verifyState.waitingFor}` && (now - lastScan.ts) < DUP_WINDOW_MS){
+      lastScan.ts = now;
+      return;
+    }
+    lastScan = { key:`verify:${q}:${verifyState.waitingFor}`, ts:now };
+
+    if(verifyState.waitingFor === 'bin'){
+      verifyState.bin = q;
+      verifyState.item = '';
+      verifyBinDisplayEl.textContent = q;
+      verifyItemDisplayEl.textContent = '—';
+      verifyStepEl.textContent = 'Bin scanned. Now scan the item in that bin.';
+      setVerifyStatus('neutral', 'Waiting for item scan');
+      verifyDetailsEl.textContent = '';
+      verifyState.waitingFor = 'item';
+      return;
+    }
+
+    verifyState.item = q;
+    verifyItemDisplayEl.textContent = q;
+    verifyStepEl.textContent = 'Checking...';
+
+    verifyBinItem(verifyState.bin, verifyState.item);
+
+    verifyState.lockUntil = Date.now() + VERIFY_RESET_DELAY_MS;
+    setTimeout(() => {
+      if(appMode === 'verify') resetVerifyMode();
+    }, VERIFY_RESET_DELAY_MS);
+  }
+
+  /** =========================
+   * MAIN SCAN ROUTER
+   * ========================= */
+  function handleScan(q){
+    if(appMode === 'verify'){
+      handleVerifyScan(q);
+    } else {
+      smartLookup(q);
+    }
+  }
+
+  /** =========================
    * EVENTS
    * ========================= */
+  appModeEls.forEach(el => {
+    el.addEventListener('change', () => {
+      if(el.checked) setAppMode(el.value);
+    });
+  });
+
+  verifyResetBtnEl.addEventListener('click', () => {
+    resetVerifyMode();
+    setTimeout(()=>scanEl.focus(), 25);
+  });
+
   scanEl.addEventListener('keydown', (e)=>{
     if(e.key === 'Enter'){
       const q = scanEl.value.trim();
       scanEl.value = '';
       if(!q) return;
-      smartLookup(q);
+      handleScan(q);
       setTimeout(()=>scanEl.focus(), 25);
     }
   });
 
   /** boot */
+  setAppMode('lookup');
   loadCSV();
 
-  // service worker (optional)
+  // service worker
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('../sw.js').catch(()=>{});
