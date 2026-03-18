@@ -20,7 +20,6 @@
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto;background:var(--bg);margin:0;padding:18px;color:var(--text)}
   .wrap{max-width:1100px;margin:0 auto}
 
-  /* NAV */
   .topnav{
     position:sticky; top:0; z-index:50;
     background:#fff;
@@ -65,7 +64,6 @@
   .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
   .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace}
 
-  /* Scan box */
   .scanWrap{width:100%; margin-top:10px}
   input.big{
     width:100%;
@@ -212,6 +210,7 @@
     background:#fff;
     font-size:22px;
     font-weight:1100;
+    transition:background .15s ease, border-color .15s ease, color .15s ease;
   }
   .verifyStatus.neutral{background:#f8fafc;color:#0f172a;border-color:#cbd5e1}
   .verifyStatus.good{background:var(--goodbg);color:var(--good);border-color:#86efac}
@@ -231,7 +230,6 @@
 <body>
 <div class="wrap">
 
-  <!-- HEADER + SCAN -->
   <div class="card">
     <div class="row" style="justify-content:space-between;align-items:flex-start">
       <div>
@@ -291,7 +289,6 @@
     </div>
   </div>
 
-  <!-- RESULT -->
   <div class="card">
     <div class="sectionTitle">
       <div>
@@ -305,7 +302,6 @@
     </div>
   </div>
 
-  <!-- SESSION LOG -->
   <div class="card">
     <div class="sectionTitle">
       <div>
@@ -337,35 +333,24 @@
 </div>
 
 <script>
-  /** =========================
-   * CONFIG
-   * ========================= */
   const CSV_URL = '../pickle-data.csv';
 
-  // Core columns
   const COL_BARCODE = 'Variant Barcode';
   const COL_SKU     = 'Variant SKU';
   const COL_TITLE   = 'Title';
   const COL_BIN     = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
 
-  // Availability columns
   const COL_AV_WH   = 'Inventory Available: Warehouse-66';
   const COL_AV_PLY  = 'Inventory Available: Plymouth';
   const COL_AV_GH   = 'Inventory Available: Green Harbor';
   const COL_AV_CONT = 'Inventory Available: Container - PLY';
 
-  // Variant ID candidates
   const VARIANT_ID_CANDIDATES = [
     'Variant ID','Variant Id','variant_id','variant id','VariantID','Variant: ID','Variant: Id'
   ];
 
-  // Duplicate scan guard
   const DUP_WINDOW_MS = 350;
-  const VERIFY_RESET_DELAY_MS = 1200;
 
-  /** =========================
-   * STATE
-   * ========================= */
   let rows = [];
   let logEntries = [];
   let lastScan = { key:'', ts:0 };
@@ -374,13 +359,9 @@
   let verifyState = {
     waitingFor: 'bin',
     bin: '',
-    item: '',
-    lockUntil: 0
+    item: ''
   };
 
-  /** =========================
-   * ELEMENTS
-   * ========================= */
   const metaEl = document.getElementById('meta');
   const resultEl = document.getElementById('result');
   const logEl = document.getElementById('log');
@@ -398,9 +379,6 @@
   const verifyDetailsEl = document.getElementById('verifyDetails');
   const verifyResetBtnEl = document.getElementById('verifyResetBtn');
 
-  /** =========================
-   * HELPERS
-   * ========================= */
   function esc(s){
     return String(s ?? '')
       .replace(/&/g,'&amp;')
@@ -428,7 +406,6 @@
     return String(v ?? '').trim().toUpperCase();
   }
 
-  /** Robust delimiter detection + CSV parse */
   function detectDelimiter(text) {
     const firstLine = (text.split(/\r?\n/).find(l => l.trim() !== '') || '');
     const candidates = [',',';','\t','|'];
@@ -477,9 +454,6 @@
     return objects;
   }
 
-  /** =========================
-   * AUDIO
-   * ========================= */
   function createAudioContext() {
     return new (window.AudioContext || window.webkitAudioContext)();
   }
@@ -487,25 +461,32 @@
   function playGoodBeep() {
     try {
       const ctx = createAudioContext();
-      const osc = ctx.createOscillator();
+
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
       const gain = ctx.createGain();
 
-      osc.type = 'sawtooth';
-      gain.gain.value = 0.08;
+      osc1.type = 'sine';
+      osc2.type = 'triangle';
 
-      osc.connect(gain);
+      osc1.frequency.setValueAtTime(1046.5, ctx.currentTime);
+      osc2.frequency.setValueAtTime(1318.5, ctx.currentTime);
+
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.09, ctx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.42);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
       gain.connect(ctx.destination);
 
-      const start = ctx.currentTime;
-      osc.frequency.setValueAtTime(600, start);
-      osc.frequency.linearRampToValueAtTime(1200, start + 0.15);
-      osc.frequency.linearRampToValueAtTime(800, start + 0.30);
-      osc.frequency.linearRampToValueAtTime(1400, start + 0.45);
+      osc1.start();
+      osc2.start();
 
-      osc.start();
+      osc1.stop(ctx.currentTime + 0.42);
+      osc2.stop(ctx.currentTime + 0.42);
 
       setTimeout(() => {
-        try { osc.stop(); } catch(_) {}
         ctx.close().catch(()=>{});
       }, 500);
     } catch(_) {}
@@ -518,27 +499,25 @@
       const gain = ctx.createGain();
 
       osc.type = 'square';
-      gain.gain.value = 0.10;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
+
+      osc.frequency.setValueAtTime(320, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(140, ctx.currentTime + 0.20);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
 
-      const start = ctx.currentTime;
-      osc.frequency.setValueAtTime(400, start);
-      osc.frequency.exponentialRampToValueAtTime(120, start + 0.25);
-
       osc.start();
+      osc.stop(ctx.currentTime + 0.22);
 
       setTimeout(() => {
-        try { osc.stop(); } catch(_) {}
         ctx.close().catch(()=>{});
       }, 300);
     } catch(_) {}
   }
 
-  /** =========================
-   * LOAD CSV
-   * ========================= */
   async function loadCSV(){
     setTag(lookupStatusEl, 'warn', 'Loading…');
     setModeBadge();
@@ -581,9 +560,6 @@
     }
   }
 
-  /** =========================
-   * LOG
-   * ========================= */
   function renderLog(){
     scanCountEl.textContent = String(logEntries.length);
     logEl.innerHTML = '';
@@ -606,9 +582,6 @@
     renderLog();
   }
 
-  /** =========================
-   * LOOKUP MODE
-   * ========================= */
   function findProductByScan(q){
     if(!rows.length) return null;
     const nq = normalizeValue(q);
@@ -769,9 +742,6 @@
     renderLog();
   }
 
-  /** =========================
-   * VERIFY MODE
-   * ========================= */
   function setModeBadge(){
     if(appMode === 'verify'){
       setTag(modeBadgeEl, 'warn', 'MODE: VERIFY BIN');
@@ -789,8 +759,6 @@
     verifyState.waitingFor = 'bin';
     verifyState.bin = '';
     verifyState.item = '';
-    verifyState.lockUntil = 0;
-
     verifyBinDisplayEl.textContent = '—';
     verifyItemDisplayEl.textContent = '—';
     verifyStepEl.textContent = 'Waiting for bin scan.';
@@ -875,8 +843,6 @@
     }
 
     const now = Date.now();
-    if(now < verifyState.lockUntil) return;
-
     if (q && lastScan.key === `verify:${q}:${verifyState.waitingFor}` && (now - lastScan.ts) < DUP_WINDOW_MS){
       lastScan.ts = now;
       return;
@@ -891,25 +857,20 @@
       verifyStepEl.textContent = 'Bin scanned. Now scan the item in that bin.';
       setVerifyStatus('neutral', 'Waiting for item scan');
       verifyDetailsEl.textContent = '';
-      verifyState.waitingFor = 'item';
-      return;
+      return verifyState.waitingFor = 'item';
     }
 
     verifyState.item = q;
     verifyItemDisplayEl.textContent = q;
     verifyStepEl.textContent = 'Checking...';
-
     verifyBinItem(verifyState.bin, verifyState.item);
 
-    verifyState.lockUntil = Date.now() + VERIFY_RESET_DELAY_MS;
-    setTimeout(() => {
-      if(appMode === 'verify') resetVerifyMode();
-    }, VERIFY_RESET_DELAY_MS);
+    verifyState.waitingFor = 'bin';
+    verifyState.bin = '';
+    verifyState.item = '';
+    verifyStepEl.textContent = 'Scan next bin to continue.';
   }
 
-  /** =========================
-   * MAIN SCAN ROUTER
-   * ========================= */
   function handleScan(q){
     if(appMode === 'verify'){
       handleVerifyScan(q);
@@ -918,9 +879,6 @@
     }
   }
 
-  /** =========================
-   * EVENTS
-   * ========================= */
   appModeEls.forEach(el => {
     el.addEventListener('change', () => {
       if(el.checked) setAppMode(el.value);
@@ -942,11 +900,9 @@
     }
   });
 
-  /** boot */
   setAppMode('lookup');
   loadCSV();
 
-  // service worker
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('../sw.js').catch(()=>{});
