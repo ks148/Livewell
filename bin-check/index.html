@@ -772,8 +772,8 @@
     setModeBadge();
     resetVerifyMode();
     scanEl.placeholder = appMode === 'verify'
-      ? 'Verify mode: scan BIN, then ITEM + Enter'
-      : 'Scan BIN or ITEM barcode + Enter';
+      ? 'Verify mode: scan BIN, then ITEM'
+      : 'Scan BIN or ITEM barcode';
     setTimeout(()=>scanEl.focus(), 25);
   }
 
