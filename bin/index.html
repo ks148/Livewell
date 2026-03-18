@@ -193,14 +193,16 @@ tbody tr:nth-child(even){background:#f9fafb}
 
 <h1>Bin Assignment</h1>
 <p class="sub">
-Assign warehouse bins in <b>Bulk Edit</b> or <b>Quick Add</b>.<br>
-In <b>Bulk Edit</b>, the user only enters <b>Zone</b> and <b>Starting Bay</b> to begin the session.
+Assign warehouse bins in <b>Bulk Edit</b>, <b>Partial Bay</b>, or <b>Quick Add</b>.<br>
+In <b>Bulk Edit</b>, enter <b>Zone</b> and <b>Starting Bay</b> to begin at Shelf 01 / Bin 01.<br>
+In <b>Partial Bay</b>, enter <b>Zone</b>, <b>Bay</b>, <b>Shelf</b>, and <b>Bin</b> to start from that exact point and continue using the same increment logic as Bulk Edit.
 </p>
 
 <div class="card">
   <div class="toolbar">
     <div class="modeSwitch">
       <button id="modeBulkBtn" class="active" type="button" onclick="setMode('bulk')">Bulk Edit</button>
+      <button id="modePartialBtn" type="button" onclick="setMode('partial')">Partial Bay</button>
       <button id="modeQuickBtn" type="button" onclick="setMode('quick')">Quick Add</button>
     </div>
 
@@ -227,17 +229,27 @@ In <b>Bulk Edit</b>, the user only enters <b>Zone</b> and <b>Starting Bay</b> to
       <input id="bayInput" class="sm mono" placeholder="03">
     </div>
 
-    <div class="col bulkOnly">
+    <div class="col partialOnly hide">
+      <div class="small">Starting Shelf</div>
+      <input id="partialShelfInput" class="sm mono" placeholder="06">
+    </div>
+
+    <div class="col partialOnly hide">
+      <div class="small">Starting Bin</div>
+      <input id="partialBinInput" class="sm mono" placeholder="03">
+    </div>
+
+    <div class="col sequenceOnly">
       <div class="small">Shelf (auto)</div>
       <div id="shelfDisplay" class="statusBox mono">01</div>
     </div>
 
-    <div class="col bulkOnly">
+    <div class="col sequenceOnly">
       <div class="small">Next Bin (auto)</div>
       <div id="binNumDisplay" class="statusBox mono">01</div>
     </div>
 
-    <div class="col bulkOnly">
+    <div class="col sequenceOnly">
       <div class="small">Hold Bin</div>
       <label class="statusBox" style="gap:10px;cursor:pointer">
         <input id="holdBin" type="checkbox">
@@ -293,7 +305,7 @@ In <b>Bulk Edit</b>, the user only enters <b>Zone</b> and <b>Starting Bay</b> to
       <input id="assignScan" class="big" placeholder="Scan item + Enter" autofocus />
     </div>
 
-    <div class="col bulkOnly" style="justify-content:flex-end">
+    <div class="col sequenceOnly" style="justify-content:flex-end">
       <div class="small">Control codes</div>
       <div class="row">
         <span class="badge warn mono">LW-END-SHELF</span>
@@ -361,7 +373,7 @@ const VARIANT_ID_CANDIDATES = [
 const END_SHELF_CODE = 'LW-END-SHELF';
 const END_BAY_CODE = 'LW-END-BAY';
 
-const STATE_KEY = 'livewell:binassign:v9';
+const STATE_KEY = 'livewell:binassign:v10';
 
 let rows = [];
 let dataLoaded = false;
@@ -377,7 +389,8 @@ let currentShelf = 1;
 let currentBinNum = 1;
 
 function pad2(v){
-  return String(v).replace(/\D/g,'').padStart(2,'0').slice(-2) || '01';
+  const cleaned = String(v ?? '').replace(/\D/g,'');
+  return cleaned ? cleaned.padStart(2,'0').slice(-2) : '01';
 }
 function n(v){
   const x = Number(String(v ?? '').trim());
@@ -494,32 +507,55 @@ function snapshotCounters(){
 }
 function restoreCounters(s){
   currentZone = s.zone || '';
-  currentBay = Number(s.bay || 1);
-  currentShelf = Number(s.shelf || 1);
-  currentBinNum = Number(s.binNum || 1);
+  currentBay = Math.max(1, Number(s.bay || 1));
+  currentShelf = Math.max(1, Number(s.shelf || 1));
+  currentBinNum = Math.max(1, Number(s.binNum || 1));
 }
 function syncInputsFromState(){
   document.getElementById('zoneInput').value = currentZone || '';
   document.getElementById('bayInput').value = pad2(currentBay);
+  document.getElementById('partialShelfInput').value = pad2(currentShelf);
+  document.getElementById('partialBinInput').value = pad2(currentBinNum);
 }
 function syncStateFromInputs(){
   currentZone = String(document.getElementById('zoneInput').value || '').trim().toUpperCase();
   currentBay = Math.max(1, n(document.getElementById('bayInput').value || 1) || 1);
-  if(currentShelf < 1) currentShelf = 1;
-  if(currentBinNum < 1) currentBinNum = 1;
+
+  if(mode === 'bulk'){
+    currentShelf = 1;
+    currentBinNum = Math.max(1, currentBinNum || 1);
+  } else if(mode === 'partial'){
+    currentShelf = Math.max(1, n(document.getElementById('partialShelfInput').value || 1) || 1);
+    currentBinNum = Math.max(1, n(document.getElementById('partialBinInput').value || 1) || 1);
+  } else {
+    if(currentShelf < 1) currentShelf = 1;
+    if(currentBinNum < 1) currentBinNum = 1;
+  }
 }
 function isHoldBinOn(){
   return !!document.getElementById('holdBin')?.checked;
 }
+function isSequenceMode(){
+  return mode === 'bulk' || mode === 'partial';
+}
 function setMode(nextMode){
-  mode = nextMode === 'quick' ? 'quick' : 'bulk';
+  mode = nextMode === 'quick' ? 'quick' : nextMode === 'partial' ? 'partial' : 'bulk';
+
+  if(mode === 'bulk'){
+    currentShelf = 1;
+    if(currentBinNum < 1) currentBinNum = 1;
+  }
 
   document.getElementById('modeBulkBtn').classList.toggle('active', mode === 'bulk');
+  document.getElementById('modePartialBtn').classList.toggle('active', mode === 'partial');
   document.getElementById('modeQuickBtn').classList.toggle('active', mode === 'quick');
 
   document.querySelectorAll('.bulkOnly').forEach(el => el.classList.toggle('hide', mode !== 'bulk'));
+  document.querySelectorAll('.partialOnly').forEach(el => el.classList.toggle('hide', mode !== 'partial'));
   document.querySelectorAll('.quickOnly').forEach(el => el.classList.toggle('hide', mode !== 'quick'));
+  document.querySelectorAll('.sequenceOnly').forEach(el => el.classList.toggle('hide', !isSequenceMode()));
 
+  syncStateFromInputs();
   updateDisplays();
   saveState();
 }
@@ -533,6 +569,11 @@ function updateDisplays(){
       currentZone
         ? (isHoldBinOn() ? 'Hold Bin is ON — next scans stay on this bin' : 'Next assignment in Bulk Edit mode')
         : 'Enter Zone + Starting Bay to begin';
+  } else if(mode === 'partial'){
+    document.getElementById('currentBinSub').textContent =
+      currentZone
+        ? (isHoldBinOn() ? 'Hold Bin is ON — next scans stay on this bin' : 'Next assignment in Partial Bay mode')
+        : 'Enter Zone + Bay + Shelf + Bin to begin';
   } else {
     document.getElementById('currentBinSub').textContent = 'Exact manual bin for Quick Add mode';
   }
@@ -544,8 +585,8 @@ function updateDisplays(){
   document.getElementById('sessionInfo').innerHTML =
     `Mode: ${mode.toUpperCase()}<br>` +
     `Zone: ${currentZone || '—'}<br>` +
-    `Bay: ${currentZone ? pad2(currentBay) : '—'} | Shelf: ${mode === 'bulk' ? pad2(currentShelf) : '—'} | Bin: ${mode === 'bulk' ? pad2(currentBinNum) : '—'}<br>` +
-    `Hold Bin: ${mode === 'bulk' ? (isHoldBinOn() ? 'ON' : 'OFF') : '—'}<br>` +
+    `Bay: ${currentZone ? pad2(currentBay) : '—'} | Shelf: ${isSequenceMode() ? pad2(currentShelf) : '—'} | Bin: ${isSequenceMode() ? pad2(currentBinNum) : '—'}<br>` +
+    `Hold Bin: ${isSequenceMode() ? (isHoldBinOn() ? 'ON' : 'OFF') : '—'}<br>` +
     `Assignments: ${assignments.length}`;
 
   document.getElementById('rowCount').textContent = `${assignments.length} row${assignments.length === 1 ? '' : 's'}`;
@@ -566,7 +607,7 @@ function addAssignment(){
 
   if(!scan) return;
 
-  if(mode === 'bulk'){
+  if(isSequenceMode()){
     if(!currentZone){
       alert('Enter Zone first.');
       document.getElementById('zoneInput').focus();
@@ -576,6 +617,18 @@ function addAssignment(){
       alert('Enter Starting Bay first.');
       document.getElementById('bayInput').focus();
       return;
+    }
+    if(mode === 'partial'){
+      if(!document.getElementById('partialShelfInput').value.trim()){
+        alert('Enter Starting Shelf first.');
+        document.getElementById('partialShelfInput').focus();
+        return;
+      }
+      if(!document.getElementById('partialBinInput').value.trim()){
+        alert('Enter Starting Bin first.');
+        document.getElementById('partialBinInput').focus();
+        return;
+      }
     }
 
     const upper = scan.toUpperCase();
@@ -625,7 +678,7 @@ function addAssignment(){
 
     const entry = {
       id: nextRowId++,
-      mode: 'bulk',
+      mode,
       variantId: getVariantId(row),
       barcode: String(row[COL_BARCODE] || '').trim(),
       sku: String(row[COL_SKU] || '').trim(),
@@ -787,7 +840,7 @@ function updateBin(id, value){
 
   const isLastRow = assignments.length && assignments[assignments.length - 1].id === id;
 
-  if(mode === 'bulk' && isLastRow && a.zone && a.bay && a.shelf && a.binPos){
+  if(isSequenceMode() && isLastRow && a.zone && a.bay && a.shelf && a.binPos){
     currentZone = a.zone;
     currentBay = Math.max(1, n(a.bay) || 1);
     currentShelf = Math.max(1, n(a.shelf) || 1);
@@ -809,8 +862,18 @@ function clearAssignments(){
   assignments = [];
   history = [];
   nextRowId = 1;
-  currentShelf = 1;
-  currentBinNum = 1;
+
+  if(mode === 'bulk'){
+    currentShelf = 1;
+    currentBinNum = 1;
+  } else if(mode === 'partial'){
+    currentShelf = Math.max(1, n(document.getElementById('partialShelfInput').value || 1) || 1);
+    currentBinNum = Math.max(1, n(document.getElementById('partialBinInput').value || 1) || 1);
+  } else {
+    currentShelf = 1;
+    currentBinNum = 1;
+  }
+
   setStatus('Cleared','warn');
   render();
   saveState();
@@ -896,6 +959,8 @@ function saveState(){
     currentBinNum,
     zoneInput: document.getElementById('zoneInput').value,
     bayInput: document.getElementById('bayInput').value,
+    partialShelfInput: document.getElementById('partialShelfInput').value,
+    partialBinInput: document.getElementById('partialBinInput').value,
     quickBinInput: document.getElementById('quickBinInput').value,
     keepSameBin: document.getElementById('keepSameBin').checked,
     holdBin: document.getElementById('holdBin').checked
@@ -913,17 +978,19 @@ function restoreState(){
   }
   try{
     const s = JSON.parse(raw);
-    mode = s.mode === 'quick' ? 'quick' : 'bulk';
+    mode = s.mode === 'quick' ? 'quick' : s.mode === 'partial' ? 'partial' : 'bulk';
     assignments = Array.isArray(s.assignments) ? s.assignments : [];
     history = Array.isArray(s.history) ? s.history : [];
     nextRowId = Number(s.nextRowId || 1);
     currentZone = s.currentZone || '';
-    currentBay = Number(s.currentBay || 1);
-    currentShelf = Number(s.currentShelf || 1);
-    currentBinNum = Number(s.currentBinNum || 1);
+    currentBay = Math.max(1, Number(s.currentBay || 1));
+    currentShelf = Math.max(1, Number(s.currentShelf || 1));
+    currentBinNum = Math.max(1, Number(s.currentBinNum || 1));
 
     document.getElementById('zoneInput').value = s.zoneInput || currentZone || '';
     document.getElementById('bayInput').value = s.bayInput || pad2(currentBay);
+    document.getElementById('partialShelfInput').value = s.partialShelfInput || pad2(currentShelf);
+    document.getElementById('partialBinInput').value = s.partialBinInput || pad2(currentBinNum);
     document.getElementById('quickBinInput').value = s.quickBinInput || '';
     document.getElementById('keepSameBin').checked = s.keepSameBin !== false;
     document.getElementById('holdBin').checked = !!s.holdBin;
@@ -950,9 +1017,30 @@ document.getElementById('quickBinInput').addEventListener('keydown', e => {
     document.getElementById('assignScan').focus();
   }
 });
-document.getElementById('zoneInput').addEventListener('input', () => { syncStateFromInputs(); updateDisplays(); saveState(); });
-document.getElementById('bayInput').addEventListener('input', () => { syncStateFromInputs(); updateDisplays(); saveState(); });
-document.getElementById('quickBinInput').addEventListener('input', () => { updateDisplays(); saveState(); });
+document.getElementById('zoneInput').addEventListener('input', () => {
+  syncStateFromInputs();
+  updateDisplays();
+  saveState();
+});
+document.getElementById('bayInput').addEventListener('input', () => {
+  syncStateFromInputs();
+  updateDisplays();
+  saveState();
+});
+document.getElementById('partialShelfInput').addEventListener('input', () => {
+  syncStateFromInputs();
+  updateDisplays();
+  saveState();
+});
+document.getElementById('partialBinInput').addEventListener('input', () => {
+  syncStateFromInputs();
+  updateDisplays();
+  saveState();
+});
+document.getElementById('quickBinInput').addEventListener('input', () => {
+  updateDisplays();
+  saveState();
+});
 document.getElementById('keepSameBin').addEventListener('change', saveState);
 document.getElementById('holdBin').addEventListener('change', () => {
   updateDisplays();
