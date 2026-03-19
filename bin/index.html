@@ -350,7 +350,6 @@ In <b>Partial Bay</b>, enter <b>Zone</b>, <b>Bay</b>, <b>Shelf</b>, and <b>Bin</
   <div class="sep"></div>
 
   <div class="row">
-    <button class="btn btnDark" onclick="downloadAllCSVs()">Download All CSVs</button>
     <button class="btn btnDark" onclick="downloadShopifyCSV()">Shopify Bin Upload CSV</button>
     <button class="btn" onclick="downloadWorkingCSV()">Working CSV</button>
     <button class="btn" onclick="downloadProductLabelCSV()">Product Labels CSV</button>
@@ -374,7 +373,7 @@ const VARIANT_ID_CANDIDATES = [
 const END_SHELF_CODE = 'LW-END-SHELF';
 const END_BAY_CODE = 'LW-END-BAY';
 
-const STATE_KEY = 'livewell:binassign:v11';
+const STATE_KEY = 'livewell:binassign:v12';
 
 let rows = [];
 let dataLoaded = false;
@@ -522,10 +521,7 @@ function syncStateFromInputs(){
   currentZone = String(document.getElementById('zoneInput').value || '').trim().toUpperCase();
   currentBay = Math.max(1, n(document.getElementById('bayInput').value || 1) || 1);
 
-  if(mode === 'bulk'){
-    currentShelf = 1;
-    currentBinNum = Math.max(1, currentBinNum || 1);
-  } else if(mode === 'partial'){
+  if(mode === 'partial'){
     currentShelf = Math.max(1, n(document.getElementById('partialShelfInput').value || 1) || 1);
     currentBinNum = Math.max(1, n(document.getElementById('partialBinInput').value || 1) || 1);
   } else {
@@ -542,11 +538,6 @@ function isSequenceMode(){
 function setMode(nextMode){
   mode = nextMode === 'quick' ? 'quick' : nextMode === 'partial' ? 'partial' : 'bulk';
 
-  if(mode === 'bulk'){
-    currentShelf = 1;
-    if(currentBinNum < 1) currentBinNum = 1;
-  }
-
   document.getElementById('modeBulkBtn').classList.toggle('active', mode === 'bulk');
   document.getElementById('modePartialBtn').classList.toggle('active', mode === 'partial');
   document.getElementById('modeQuickBtn').classList.toggle('active', mode === 'quick');
@@ -556,7 +547,7 @@ function setMode(nextMode){
   document.querySelectorAll('.quickOnly').forEach(el => el.classList.toggle('hide', mode !== 'quick'));
   document.querySelectorAll('.sequenceOnly').forEach(el => el.classList.toggle('hide', !isSequenceMode()));
 
-  syncStateFromInputs();
+  syncInputsFromState();
   updateDisplays();
   saveState();
 }
@@ -896,22 +887,23 @@ function downloadFile(name, text){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download=name;
+  a.download = name;
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-function buildShopifyCSVText(){
+function downloadShopifyCSV(){
   let csv = "Variant ID,Variant Metafield: custom.wh_bin [single_line_text_field]\n";
   assignments.forEach(a => {
     if(a.variantId && a.bin){
       csv += `${csvEscape(a.variantId)},${csvEscape(a.bin)}\n`;
     }
   });
-  return csv;
+  const { z, b } = currentZoneBayForFiles();
+  downloadFile(`SHOPIFY-${z}-${b}.csv`, csv);
 }
-function buildWorkingCSVText(){
+function downloadWorkingCSV(){
   let csv = "zone,bay,shelf,bin_position,wh_bin,variant_id,barcode,sku,title\n";
   assignments.forEach(a => {
     csv += [
@@ -926,16 +918,18 @@ function buildWorkingCSVText(){
       csvEscape(a.title)
     ].join(',') + "\n";
   });
-  return csv;
+  const { z, b } = currentZoneBayForFiles();
+  downloadFile(`WORKING-${z}-${b}.csv`, csv);
 }
-function buildProductLabelCSVText(){
+function downloadProductLabelCSV(){
   let csv = "sku,title,barcode\n";
   assignments.forEach(a => {
     csv += `${csvEscape(a.sku)},${csvEscape(a.title)},${csvEscape(a.barcode)}\n`;
   });
-  return csv;
+  const { z, b } = currentZoneBayForFiles();
+  downloadFile(`PRODUCT-${z}-${b}.csv`, csv);
 }
-function buildBinLabelCSVText(){
+function downloadBinLabelCSV(){
   const seen = new Set();
   let csv = "bin,barcode\n";
   assignments.forEach(a => {
@@ -944,37 +938,8 @@ function buildBinLabelCSVText(){
     seen.add(bin);
     csv += `${csvEscape(bin)},${csvEscape(bin)}\n`;
   });
-  return csv;
-}
-function downloadShopifyCSV(){
   const { z, b } = currentZoneBayForFiles();
-  downloadFile(`SHOPIFY-${z}-${b}.csv`, buildShopifyCSVText());
-}
-function downloadWorkingCSV(){
-  const { z, b } = currentZoneBayForFiles();
-  downloadFile(`WORKING-${z}-${b}.csv`, buildWorkingCSVText());
-}
-function downloadProductLabelCSV(){
-  const { z, b } = currentZoneBayForFiles();
-  downloadFile(`PRODUCT-${z}-${b}.csv`, buildProductLabelCSVText());
-}
-function downloadBinLabelCSV(){
-  const { z, b } = currentZoneBayForFiles();
-  downloadFile(`BIN-${z}-${b}.csv`, buildBinLabelCSVText());
-}
-function downloadAllCSVs(){
-  if(!assignments.length){
-    setStatus('No assignments to export','warn');
-    return;
-  }
-
-  const { z, b } = currentZoneBayForFiles();
-
-  downloadFile(`SHOPIFY-${z}-${b}.csv`, buildShopifyCSVText());
-  setTimeout(() => downloadFile(`PRODUCT-${z}-${b}.csv`, buildProductLabelCSVText()), 150);
-  setTimeout(() => downloadFile(`BIN-${z}-${b}.csv`, buildBinLabelCSVText()), 300);
-
-  setStatus('Downloaded Shopify + Product + Bin CSVs','ok');
+  downloadFile(`BIN-${z}-${b}.csv`, csv);
 }
 function saveState(){
   const state = {
