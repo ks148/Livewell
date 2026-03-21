@@ -60,6 +60,7 @@
   .tag.good{background:var(--goodbg);color:var(--good);border-color:#86efac}
   .tag.warn{background:var(--warnbg);color:var(--warn);border-color:#fed7aa}
   .tag.bad{background:var(--badbg);color:var(--bad);border-color:#fecaca}
+  .tag.info{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
 
   .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
   .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace}
@@ -224,6 +225,18 @@
     line-height:1.35;
     min-height:20px;
   }
+
+  .searchHint{
+    margin-top:8px;
+    color:var(--muted);
+    font-size:13px;
+    font-weight:900;
+  }
+
+  .notAssigned{
+    color:#9a3412;
+    font-weight:1100;
+  }
 </style>
 </head>
 
@@ -236,6 +249,7 @@
         <h1>Bin Checker</h1>
         <div class="sub">
           Lookup mode: scan <strong>ITEM</strong> → see bin + availability. Scan <strong>BIN</strong> → see what belongs there.<br>
+          Type part of a product title and press <strong>Enter</strong> → see all matching products and their bins.<br>
           Verify mode: scan <strong>BIN</strong>, then scan <strong>ITEM</strong> → confirm it is the correct item in the correct bin.
         </div>
       </div>
@@ -285,7 +299,10 @@
     </div>
 
     <div class="scanWrap">
-      <input id="scan" class="big" placeholder="Scan BIN or ITEM barcode + Enter" autofocus autocomplete="off" inputmode="none" />
+      <input id="scan" class="big" placeholder="Scan BIN / ITEM or type product title + Enter" autofocus autocomplete="off" />
+      <div class="searchHint">
+        Examples: scan barcode, scan bin, scan SKU, or type part of title like <span class="mono">gamakatsu super mutu</span>
+      </div>
     </div>
   </div>
 
@@ -293,12 +310,12 @@
     <div class="sectionTitle">
       <div>
         <h2>Result</h2>
-        <div class="sub">Replaces on every scan (history is saved in the session log below).</div>
+        <div class="sub">Replaces on every scan/search (history is saved in the session log below).</div>
       </div>
     </div>
     <div id="result" class="resultCard">
       <span class="tag warn">Ready</span>
-      <span class="sub">Scan a BIN code, product barcode, or SKU.</span>
+      <span class="sub">Scan a BIN code, product barcode, SKU, or type part of a title.</span>
     </div>
   </div>
 
@@ -306,7 +323,7 @@
     <div class="sectionTitle">
       <div>
         <h2>Session Log</h2>
-        <div class="sub">Everything scanned on this iPad during this session.</div>
+        <div class="sub">Everything scanned or searched on this iPad during this session.</div>
       </div>
       <div class="row">
         <div class="sub">Scans: <strong id="scanCount">0</strong></div>
@@ -404,6 +421,12 @@
   }
   function normalizeValue(v){
     return String(v ?? '').trim().toUpperCase();
+  }
+  function normalizeLoose(v){
+    return String(v ?? '')
+      .toUpperCase()
+      .replace(/\s+/g,' ')
+      .trim();
   }
 
   function detectDelimiter(text) {
@@ -591,9 +614,15 @@
     ) || null;
   }
 
+  function findProductsByTitleSearch(q){
+    const needle = normalizeLoose(q);
+    if(!needle) return [];
+    return rows.filter(r => normalizeLoose(r[COL_TITLE]).includes(needle));
+  }
+
   function showProductResult(m){
     const vid = getVariantId(m);
-    const bin = (m[COL_BIN] || '').trim() || '—';
+    const bin = (m[COL_BIN] || '').trim() || 'Not Assigned';
 
     const avWH  = nInt(m[COL_AV_WH]);
     const avPLY = nInt(m[COL_AV_PLY]);
@@ -685,6 +714,69 @@
     resultEl.innerHTML = html;
   }
 
+  function showTitleSearchResults(q, matches){
+    const list = [...matches].sort((a,b)=>{
+      const ta = (a[COL_TITLE]||'').toLowerCase();
+      const tb = (b[COL_TITLE]||'').toLowerCase();
+      if(ta !== tb) return ta.localeCompare(tb);
+      return (a[COL_SKU]||'').localeCompare(b[COL_SKU]||'');
+    });
+
+    let html = `
+      <div class="tag info">TITLE SEARCH</div>
+      <div class="titleBig">${esc(q)}</div>
+      <div class="sub" style="margin-top:6px">
+        Matching products (${list.length}):
+      </div>
+
+      <div style="margin-top:12px; overflow:auto; max-height:50vh">
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>SKU</th>
+              <th>Barcode</th>
+              <th>Bin</th>
+              <th>WH</th>
+              <th>PLY</th>
+              <th>GH</th>
+              <th>CON</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    for(const r of list){
+      const bin = String(r[COL_BIN] || '').trim();
+      const binDisplay = bin || 'Not Assigned';
+
+      html += `
+        <tr>
+          <td>${esc(r[COL_TITLE] || '')}</td>
+          <td class="mono">${esc(r[COL_SKU] || '')}</td>
+          <td class="mono">${esc(r[COL_BARCODE] || '')}</td>
+          <td class="mono ${bin ? '' : 'notAssigned'}">${esc(binDisplay)}</td>
+          <td class="mono">${esc(nInt(r[COL_AV_WH]))}</td>
+          <td class="mono">${esc(nInt(r[COL_AV_PLY]))}</td>
+          <td class="mono">${esc(nInt(r[COL_AV_GH]))}</td>
+          <td class="mono">${esc(nInt(r[COL_AV_CONT]))}</td>
+        </tr>
+      `;
+    }
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sub" style="margin-top:10px">
+        <strong>Meaning:</strong> This lets you type part of a product title and see where matching products live. Any row showing <span class="mono">Not Assigned</span> does not currently have a warehouse bin in the file.
+      </div>
+    `;
+
+    resultEl.innerHTML = html;
+  }
+
   function smartLookup(q){
     if(!rows.length){
       resultEl.innerHTML = `<span class="tag bad">Not ready</span> <span class="sub">CSV not loaded.</span>`;
@@ -716,28 +808,43 @@
     }
 
     const m = findProductByScan(q);
-    if(!m){
-      resultEl.innerHTML = `<span class="tag bad">Not found</span> <span class="sub">Scan a BIN code, barcode, or SKU again.</span>`;
+    if(m){
+      showProductResult(m);
 
       logEntries.unshift({
         ts: now,
-        type: 'NOT_FOUND',
+        type: 'PRODUCT',
         scanned: q,
-        bin: '',
-        title: ''
+        bin: (m[COL_BIN] || '').trim(),
+        title: (m[COL_TITLE] || '').trim()
       });
       renderLog();
       return;
     }
 
-    showProductResult(m);
+    const titleMatches = findProductsByTitleSearch(q);
+    if(titleMatches.length){
+      showTitleSearchResults(q, titleMatches);
+
+      logEntries.unshift({
+        ts: now,
+        type: 'TITLE_SEARCH',
+        scanned: q,
+        bin: '',
+        title: `${titleMatches.length} matches`
+      });
+      renderLog();
+      return;
+    }
+
+    resultEl.innerHTML = `<span class="tag bad">Not found</span> <span class="sub">No BIN, barcode, SKU, or title matches found.</span>`;
 
     logEntries.unshift({
       ts: now,
-      type: 'PRODUCT',
+      type: 'NOT_FOUND',
       scanned: q,
-      bin: (m[COL_BIN] || '').trim(),
-      title: (m[COL_TITLE] || '').trim()
+      bin: '',
+      title: ''
     });
     renderLog();
   }
@@ -773,7 +880,7 @@
     resetVerifyMode();
     scanEl.placeholder = appMode === 'verify'
       ? 'Verify mode: scan BIN, then ITEM'
-      : 'Scan BIN or ITEM barcode';
+      : 'Scan BIN / ITEM or type product title + Enter';
     setTimeout(()=>scanEl.focus(), 25);
   }
 
