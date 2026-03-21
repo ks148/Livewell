@@ -13,10 +13,10 @@
   --bg:#f7f9fc; --card:#fff; --text:#0f172a; --muted:#475569; --line:#e2e8f0;
   --goodbg:#dcfce7; --good:#166534; --badbg:#fee2e2; --bad:#7f1d1d;
   --warnbg:#fff7ed; --warn:#9a3412; --infobg:#dbeafe; --info:#1d4ed8;
-  --blue:#1d4ed8; --blue2:#2563eb;
+  --blue:#1d4ed8; --blue2:#2563eb; --activeRow:#eff6ff; --activeRowBorder:#93c5fd;
 }
 body{font-family:system-ui,-apple-system,Segoe UI,Roboto;background:var(--bg);margin:0;padding:18px;color:var(--text)}
-.wrap{max-width:1200px;margin:0 auto}
+.wrap{max-width:1280px;margin:0 auto}
 
 .topnav{
   position:sticky; top:0; z-index:50;
@@ -57,6 +57,9 @@ h1{margin:6px 0 6px;font-size:34px}
 .btnPrimary{background:var(--blue);border-color:var(--blue);color:#fff}
 .btnDanger{background:#7f1d1d;border-color:#7f1d1d;color:#fff}
 .btnDark{background:#0f172a;border-color:#0f172a;color:#fff}
+.btnSoft{
+  background:#eef2ff;border-color:#c7d2fe;color:#1d4ed8;
+}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 
 button.rowUndo{
@@ -68,6 +71,11 @@ button.rowRemove{
   padding:8px 10px;border-radius:10px;border:1px solid #d1d5db;
   background:#fff;color:#475569;font-weight:900;cursor:pointer;
   white-space:nowrap;
+}
+button.miniRemove{
+  padding:6px 8px;border-radius:8px;border:1px solid #d1d5db;
+  background:#fff;color:#475569;font-weight:900;cursor:pointer;
+  white-space:nowrap;font-size:12px;
 }
 
 input.big{
@@ -118,6 +126,11 @@ input.code{
 table{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}
 th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
 tbody tr:nth-child(even){background:#f9fafb}
+tbody tr.activeBinRow,
+tbody tr.activeBinRow:nth-child(even){
+  background:var(--activeRow)!important;
+  box-shadow:inset 4px 0 0 var(--activeRowBorder);
+}
 .mono{font-family:ui-monospace, monospace}
 
 .cellInput{
@@ -150,6 +163,84 @@ tbody tr:nth-child(even){background:#f9fafb}
   max-height:50vh;
 }
 
+.panelGrid{
+  display:grid;
+  grid-template-columns: 1.1fr .9fr;
+  gap:14px;
+  margin-top:14px;
+}
+.panel{
+  background:#f8fafc;
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:14px;
+}
+.panelHead{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:10px;
+}
+.panelTitle{
+  font-size:13px;
+  color:var(--muted);
+  font-weight:1000;
+  letter-spacing:.04em;
+}
+.contentsList{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  max-height:280px;
+  overflow:auto;
+}
+.contentsItem{
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px 12px;
+  display:grid;
+  grid-template-columns: 1fr auto;
+  gap:10px;
+  align-items:center;
+}
+.contentsItem .name{
+  font-weight:900;
+  color:#0f172a;
+  line-height:1.25;
+}
+.contentsItem .meta{
+  font-size:12px;
+  color:var(--muted);
+  margin-top:4px;
+  line-height:1.3;
+}
+.emptyState{
+  padding:14px;
+  border:1px dashed #cbd5e1;
+  border-radius:12px;
+  color:var(--muted);
+  font-weight:700;
+  background:#fff;
+}
+.actionStack{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+}
+.noteBox{
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px 12px;
+  background:#fff;
+  font-size:13px;
+  color:var(--muted);
+  line-height:1.35;
+}
+.warnText{color:var(--warn);font-weight:1000}
+.okText{color:var(--good);font-weight:1000}
+
 .colNum{width:56px}
 .colVar{width:120px}
 .colBarcode{width:120px}
@@ -162,6 +253,9 @@ tbody tr:nth-child(even){background:#f9fafb}
 .colBinPos{width:80px}
 .colAction{width:118px}
 
+@media (max-width: 980px){
+  .panelGrid{grid-template-columns:1fr}
+}
 @media (max-width: 820px){
   body{padding:12px}
   .card{padding:12px}
@@ -177,7 +271,6 @@ tbody tr:nth-child(even){background:#f9fafb}
 <body>
 <div class="wrap">
 
-<!-- NAV -->
 <div class="topnav">
   <div class="row">
     <a href="../index.html"><button>🏠 Home</button></a>
@@ -195,7 +288,8 @@ tbody tr:nth-child(even){background:#f9fafb}
 <p class="sub">
 Assign warehouse bins in <b>Bulk Edit</b>, <b>Partial Bay</b>, or <b>Quick Add</b>.<br>
 In <b>Bulk Edit</b>, enter <b>Zone</b> and <b>Starting Bay</b> to begin at Shelf 01 / Bin 01.<br>
-In <b>Partial Bay</b>, enter <b>Zone</b>, <b>Bay</b>, <b>Shelf</b>, and <b>Bin</b> to start from that exact point and continue using the same increment logic as Bulk Edit.
+In <b>Partial Bay</b>, enter <b>Zone</b>, <b>Bay</b>, <b>Shelf</b>, and <b>Bin</b> to start from that exact point and continue using the same advancement logic.<br>
+In <b>Bulk</b> and <b>Partial</b>, the app now stays on the current bin until you click <b>Done With This Bin</b>.
 </p>
 
 <div class="card">
@@ -209,6 +303,7 @@ In <b>Partial Bay</b>, enter <b>Zone</b>, <b>Bay</b>, <b>Shelf</b>, and <b>Bin</
     <span id="csvStatus" class="badge warn">CSV: Loading…</span>
     <span id="statusBadge" class="badge info">Ready</span>
     <span id="draftStatus" class="badge">Draft idle</span>
+    <span id="duplicateBadge" class="badge hide">Duplicate</span>
 
     <div class="right row">
       <button class="btn" type="button" onclick="undoLast()">Undo Last</button>
@@ -245,16 +340,8 @@ In <b>Partial Bay</b>, enter <b>Zone</b>, <b>Bay</b>, <b>Shelf</b>, and <b>Bin</
     </div>
 
     <div class="col sequenceOnly">
-      <div class="small">Next Bin (auto)</div>
+      <div class="small">Current Bin Position</div>
       <div id="binNumDisplay" class="statusBox mono">01</div>
-    </div>
-
-    <div class="col sequenceOnly">
-      <div class="small">Hold Bin</div>
-      <label class="statusBox" style="gap:10px;cursor:pointer">
-        <input id="holdBin" type="checkbox">
-        <span class="mono">Keep assigning to same bin</span>
-      </label>
     </div>
 
     <div class="col quickOnly hide">
@@ -289,10 +376,40 @@ In <b>Partial Bay</b>, enter <b>Zone</b>, <b>Bay</b>, <b>Shelf</b>, and <b>Bin</
       <div class="label">SESSION INFO</div>
       <div class="subv mono" id="sessionInfo" style="font-size:15px;color:#0f172a">
         Mode: BULK<br>
-        Zone: —<br>
-        Bay: — | Shelf: — | Bin: —<br>
-        Hold Bin: OFF<br>
+        Current Bin: —<br>
+        Items In Bin: 0<br>
         Assignments: 0
+      </div>
+    </div>
+  </div>
+
+  <div class="panelGrid">
+    <div class="panel sequenceOnly">
+      <div class="panelHead">
+        <div class="panelTitle">CURRENT BIN CONTENTS</div>
+        <div class="row">
+          <span id="binItemCountBadge" class="badge info">0 items</span>
+          <button class="btn btnSoft" type="button" onclick="clearCurrentBinOnly()">Clear Current Bin Only</button>
+        </div>
+      </div>
+      <div id="currentBinContents" class="contentsList"></div>
+    </div>
+
+    <div class="panel sequenceOnly">
+      <div class="panelHead">
+        <div class="panelTitle">BIN ACTIONS</div>
+      </div>
+      <div class="actionStack">
+        <button id="doneWithBinBtn" class="btn btnPrimary" type="button" onclick="doneWithThisBin()">Done With This Bin</button>
+        <button class="btn" type="button" onclick="scanFocus()">Focus Scan Box</button>
+      </div>
+      <div style="height:10px"></div>
+      <div class="noteBox">
+        Scan all SKUs for the current bin, then click <b>Done With This Bin</b> to advance to the next bin.<br><br>
+        <span class="warnText">Control codes</span><br>
+        <span class="badge warn mono">LW-END-SHELF</span>
+        <span class="badge info mono">LW-END-BAY</span><br><br>
+        Control codes only work when the current bin is empty. If the bin has items, finish it first or clear the current bin.
       </div>
     </div>
   </div>
@@ -303,14 +420,6 @@ In <b>Partial Bay</b>, enter <b>Zone</b>, <b>Bay</b>, <b>Shelf</b>, and <b>Bin</
     <div style="flex:1;min-width:320px">
       <div class="small">Scan item (barcode or SKU) or scan control barcode</div>
       <input id="assignScan" class="big" placeholder="Scan item + Enter" autofocus />
-    </div>
-
-    <div class="col sequenceOnly" style="justify-content:flex-end">
-      <div class="small">Control codes</div>
-      <div class="row">
-        <span class="badge warn mono">LW-END-SHELF</span>
-        <span class="badge info mono">LW-END-BAY</span>
-      </div>
     </div>
 
     <div class="col">
@@ -373,7 +482,7 @@ const VARIANT_ID_CANDIDATES = [
 const END_SHELF_CODE = 'LW-END-SHELF';
 const END_BAY_CODE = 'LW-END-BAY';
 
-const STATE_KEY = 'livewell:binassign:v13';
+const STATE_KEY = 'livewell:binassign:v14';
 
 let rows = [];
 let dataLoaded = false;
@@ -412,6 +521,16 @@ function setStatus(text, kind='info'){
 }
 function setDraftStatus(text){
   document.getElementById('draftStatus').textContent = text;
+}
+function setDuplicateBadge(text='', kind='warn', show=false){
+  const el = document.getElementById('duplicateBadge');
+  if(!show){
+    el.className = 'badge hide';
+    el.textContent = 'Duplicate';
+    return;
+  }
+  el.textContent = text;
+  el.className = 'badge ' + kind;
 }
 function getVariantId(row){
   for(const k of VARIANT_ID_CANDIDATES){
@@ -529,11 +648,41 @@ function syncStateFromInputs(){
     if(currentBinNum < 1) currentBinNum = 1;
   }
 }
-function isHoldBinOn(){
-  return !!document.getElementById('holdBin')?.checked;
-}
 function isSequenceMode(){
   return mode === 'bulk' || mode === 'partial';
+}
+function getCurrentBinItems(){
+  if(!isSequenceMode()) return [];
+  const bin = currentBinString();
+  if(!bin || bin === '—') return [];
+  return assignments.filter(a => String(a.bin || '').trim().toUpperCase() === bin);
+}
+function hasCurrentBinItems(){
+  return getCurrentBinItems().length > 0;
+}
+function currentBinHasDuplicate(row){
+  const items = getCurrentBinItems();
+  const barcode = String(row?.[COL_BARCODE] || '').trim();
+  const sku = String(row?.[COL_SKU] || '').trim();
+  return items.some(a =>
+    (barcode && a.barcode === barcode) ||
+    (sku && a.sku === sku)
+  );
+}
+function advanceToNextBin(){
+  currentBinNum += 1;
+}
+function moveToNextShelf(){
+  currentShelf += 1;
+  currentBinNum = 1;
+}
+function moveToNextBay(){
+  currentBay += 1;
+  currentShelf = 1;
+  currentBinNum = 1;
+}
+function scanFocus(){
+  document.getElementById('assignScan').focus();
 }
 function setMode(nextMode){
   mode = nextMode === 'quick' ? 'quick' : nextMode === 'partial' ? 'partial' : 'bulk';
@@ -549,22 +698,56 @@ function setMode(nextMode){
 
   syncInputsFromState();
   updateDisplays();
+  render();
   saveState();
+}
+function renderCurrentBinContents(){
+  const wrap = document.getElementById('currentBinContents');
+  const items = getCurrentBinItems();
+  document.getElementById('binItemCountBadge').textContent = `${items.length} item${items.length === 1 ? '' : 's'}`;
+
+  if(!isSequenceMode()){
+    wrap.innerHTML = '';
+    return;
+  }
+
+  if(!items.length){
+    wrap.innerHTML = `<div class="emptyState">No items scanned into this bin yet.</div>`;
+    return;
+  }
+
+  wrap.innerHTML = items.map(a => `
+    <div class="contentsItem">
+      <div>
+        <div class="name">${escapeHtml(a.title || a.sku || a.barcode || 'Untitled')}</div>
+        <div class="meta mono">
+          SKU: ${escapeHtml(a.sku || '—')}<br>
+          Barcode: ${escapeHtml(a.barcode || '—')}<br>
+          Variant ID: ${escapeHtml(a.variantId || '—')}
+        </div>
+      </div>
+      <div>
+        <button class="miniRemove" type="button" onclick="removeRow(${a.id})">Remove</button>
+      </div>
+    </div>
+  `).join('');
 }
 function updateDisplays(){
   document.getElementById('shelfDisplay').textContent = pad2(currentShelf);
   document.getElementById('binNumDisplay').textContent = pad2(currentBinNum);
   document.getElementById('currentBinDisplay').textContent = currentBinString();
 
+  const itemsInCurrentBin = getCurrentBinItems().length;
+
   if(mode === 'bulk'){
     document.getElementById('currentBinSub').textContent =
       currentZone
-        ? (isHoldBinOn() ? 'Hold Bin is ON — next scans stay on this bin' : 'Next assignment in Bulk Edit mode')
+        ? 'Scan items into this bin, then click Done With This Bin'
         : 'Enter Zone + Starting Bay to begin';
   } else if(mode === 'partial'){
     document.getElementById('currentBinSub').textContent =
       currentZone
-        ? (isHoldBinOn() ? 'Hold Bin is ON — next scans stay on this bin' : 'Next assignment in Partial Bay mode')
+        ? 'Scan items into this bin, then click Done With This Bin'
         : 'Enter Zone + Bay + Shelf + Bin to begin';
   } else {
     document.getElementById('currentBinSub').textContent = 'Exact manual bin for Quick Add mode';
@@ -576,14 +759,56 @@ function updateDisplays(){
 
   document.getElementById('sessionInfo').innerHTML =
     `Mode: ${mode.toUpperCase()}<br>` +
-    `Zone: ${currentZone || '—'}<br>` +
-    `Bay: ${currentZone ? pad2(currentBay) : '—'} | Shelf: ${isSequenceMode() ? pad2(currentShelf) : '—'} | Bin: ${isSequenceMode() ? pad2(currentBinNum) : '—'}<br>` +
-    `Hold Bin: ${isSequenceMode() ? (isHoldBinOn() ? 'ON' : 'OFF') : '—'}<br>` +
+    `Current Bin: ${currentBinString()}<br>` +
+    `Items In Bin: ${isSequenceMode() ? itemsInCurrentBin : '—'}<br>` +
     `Assignments: ${assignments.length}`;
 
   document.getElementById('rowCount').textContent = `${assignments.length} row${assignments.length === 1 ? '' : 's'}`;
 
+  renderCurrentBinContents();
   syncInputsFromState();
+}
+function handleSequenceControl(upper, scanEl){
+  if(hasCurrentBinItems()){
+    setStatus('Current bin has items — click Done With This Bin first or clear current bin','warn');
+    scanEl.value = '';
+    setDuplicateBadge();
+    scanEl.focus();
+    return true;
+  }
+
+  if(upper === END_SHELF_CODE){
+    const before = snapshotCounters();
+    moveToNextShelf();
+    const after = snapshotCounters();
+
+    history.push({ type:'control', control:'end_shelf', before, after });
+    setStatus('END OF SHELF recorded','warn');
+    scanEl.value = '';
+    updateDisplays();
+    render();
+    saveState();
+    scanEl.focus();
+    return true;
+  }
+
+  if(upper === END_BAY_CODE){
+    const before = snapshotCounters();
+    moveToNextBay();
+    const after = snapshotCounters();
+
+    history.push({ type:'control', control:'end_bay', before, after });
+    setStatus('END OF BAY recorded','info');
+    scanEl.value = '';
+    syncInputsFromState();
+    updateDisplays();
+    render();
+    saveState();
+    scanEl.focus();
+    return true;
+  }
+
+  return false;
 }
 function addAssignment(){
   if(!dataLoaded){
@@ -624,49 +849,17 @@ function addAssignment(){
     }
 
     const upper = scan.toUpperCase();
-
-    if(upper === END_SHELF_CODE){
-      const before = snapshotCounters();
-      currentShelf += 1;
-      currentBinNum = 1;
-      const after = snapshotCounters();
-
-      history.push({ type:'control', control:'end_shelf', before, after });
-      setStatus('END OF SHELF recorded','warn');
-      scanEl.value = '';
-      updateDisplays();
-      render();
-      saveState();
-      scanEl.focus();
-      return;
-    }
-
-    if(upper === END_BAY_CODE){
-      const before = snapshotCounters();
-      currentBay += 1;
-      currentShelf = 1;
-      currentBinNum = 1;
-      const after = snapshotCounters();
-
-      history.push({ type:'control', control:'end_bay', before, after });
-      setStatus('END OF BAY recorded','info');
-      scanEl.value = '';
-      syncInputsFromState();
-      updateDisplays();
-      render();
-      saveState();
-      scanEl.focus();
-      return;
-    }
+    if(handleSequenceControl(upper, scanEl)) return;
 
     const row = findRow(scan);
     if(!row){
       setStatus('Not found: ' + scan,'bad');
+      setDuplicateBadge();
       return;
     }
 
-    const before = snapshotCounters();
     const assignedBin = buildWhBin(currentZone, currentBay, currentShelf, currentBinNum);
+    const isDup = currentBinHasDuplicate(row);
 
     const entry = {
       id: nextRowId++,
@@ -684,23 +877,20 @@ function addAssignment(){
 
     assignments.push(entry);
 
-    const holdBin = isHoldBinOn();
-    if(!holdBin){
-      currentBinNum += 1;
-    }
-
-    syncInputsFromState();
-
-    const after = snapshotCounters();
     history.push({
       type:'product',
       entryId: entry.id,
-      before,
-      after,
-      holdBin
+      bin: assignedBin
     });
 
-    setStatus(holdBin ? ('Assigned to ' + assignedBin + ' (Hold Bin ON)') : ('Assigned to ' + assignedBin),'ok');
+    if(isDup){
+      setStatus('Assigned to ' + assignedBin + ' — duplicate in current bin','warn');
+      setDuplicateBadge('Duplicate in current bin','warn',true);
+    }else{
+      setStatus('Assigned to ' + assignedBin,'ok');
+      setDuplicateBadge();
+    }
+
     scanEl.value = '';
     updateDisplays();
     render();
@@ -719,6 +909,7 @@ function addAssignment(){
   const row = findRow(scan);
   if(!row){
     setStatus('Not found: ' + scan,'bad');
+    setDuplicateBadge();
     return;
   }
 
@@ -745,6 +936,7 @@ function addAssignment(){
   assignments.push(entry);
   history.push({ type:'product_quick', entryId: entry.id });
   setStatus('Assigned to ' + exactBin,'ok');
+  setDuplicateBadge();
 
   scanEl.value = '';
   if(!document.getElementById('keepSameBin').checked){
@@ -755,6 +947,38 @@ function addAssignment(){
   render();
   saveState();
   scanEl.focus();
+}
+function doneWithThisBin(){
+  if(!isSequenceMode()){
+    setStatus('Done With This Bin only applies to Bulk and Partial','warn');
+    return;
+  }
+  if(!currentZone){
+    setStatus('Enter Zone first','warn');
+    return;
+  }
+
+  const before = snapshotCounters();
+  const finishedBin = currentBinString();
+  const itemCount = getCurrentBinItems().length;
+
+  advanceToNextBin();
+
+  const after = snapshotCounters();
+  history.push({
+    type:'bin_done',
+    before,
+    after,
+    finishedBin,
+    itemCount
+  });
+
+  setStatus(`Done with ${finishedBin} — advanced to ${currentBinString()}`,'info');
+  setDuplicateBadge();
+  updateDisplays();
+  render();
+  saveState();
+  scanFocus();
 }
 function undoLast(){
   if(!history.length){
@@ -767,13 +991,18 @@ function undoLast(){
   if(last.type === 'product' || last.type === 'product_quick'){
     const idx = assignments.findIndex(a => a.id === last.entryId);
     if(idx >= 0) assignments.splice(idx, 1);
+  } else if(last.type === 'control' || last.type === 'bin_done'){
     if(last.before) restoreCounters(last.before);
-  } else if(last.type === 'control'){
-    restoreCounters(last.before);
     syncInputsFromState();
+  } else if(last.type === 'clear_current_bin'){
+    if(Array.isArray(last.removedEntries) && last.removedEntries.length){
+      assignments.push(...last.removedEntries);
+      assignments.sort((a,b) => a.id - b.id);
+    }
   }
 
   setStatus('Last action undone','warn');
+  setDuplicateBadge();
   updateDisplays();
   render();
   saveState();
@@ -784,14 +1013,47 @@ function removeRow(id){
   if(idx < 0) return;
   assignments.splice(idx, 1);
   setStatus('Row removed','warn');
+  setDuplicateBadge();
   render();
   saveState();
+}
+function clearCurrentBinOnly(){
+  if(!isSequenceMode()){
+    setStatus('Clear Current Bin Only only applies to Bulk and Partial','warn');
+    return;
+  }
+
+  const bin = currentBinString();
+  const toRemove = assignments.filter(a => String(a.bin || '').trim().toUpperCase() === bin);
+  if(!toRemove.length){
+    setStatus('Current bin is already empty','warn');
+    return;
+  }
+
+  if(!confirm(`Remove ${toRemove.length} row(s) from ${bin}?`)) return;
+
+  const removedIds = new Set(toRemove.map(x => x.id));
+  assignments = assignments.filter(a => !removedIds.has(a.id));
+
+  history.push({
+    type:'clear_current_bin',
+    bin,
+    removedEntries: structuredCloneSafe(toRemove)
+  });
+
+  setStatus(`Cleared ${toRemove.length} row(s) from ${bin}`,'warn');
+  setDuplicateBadge();
+  updateDisplays();
+  render();
+  saveState();
+  scanFocus();
 }
 function render(){
   const tbody = document.getElementById('assignTable');
   tbody.innerHTML = '';
 
   const lastRowId = assignments.length ? assignments[assignments.length - 1].id : null;
+  const activeBin = isSequenceMode() ? currentBinString() : '';
 
   assignments.forEach((a, i) => {
     const isLastRow = a.id === lastRowId;
@@ -800,17 +1062,22 @@ function render(){
       : `<button class="rowRemove" type="button" onclick="removeRow(${a.id})">Remove Row</button>`;
 
     const tr = document.createElement('tr');
+    const rowBin = String(a.bin || '').trim().toUpperCase();
+    if(activeBin && rowBin === activeBin){
+      tr.classList.add('activeBinRow');
+    }
+
     tr.innerHTML = `
       <td class="colNum">${i + 1}</td>
-      <td class="mono colVar">${a.variantId || ''}</td>
-      <td class="mono colBarcode">${a.barcode || ''}</td>
+      <td class="mono colVar">${escapeHtml(a.variantId || '')}</td>
+      <td class="mono colBarcode">${escapeHtml(a.barcode || '')}</td>
       <td class="colWhBin"><input class="cellInput" value="${escapeHtml(a.bin || '')}" onchange="updateBin(${a.id}, this.value)"></td>
-      <td class="mono colSku">${a.sku || ''}</td>
-      <td class="colTitle">${a.title || ''}</td>
-      <td class="mono colZone">${a.zone || ''}</td>
-      <td class="mono colBay">${a.bay || ''}</td>
-      <td class="mono colShelf">${a.shelf || ''}</td>
-      <td class="mono colBinPos">${a.binPos || ''}</td>
+      <td class="mono colSku">${escapeHtml(a.sku || '')}</td>
+      <td class="colTitle">${escapeHtml(a.title || '')}</td>
+      <td class="mono colZone">${escapeHtml(a.zone || '')}</td>
+      <td class="mono colBay">${escapeHtml(a.bay || '')}</td>
+      <td class="mono colShelf">${escapeHtml(a.shelf || '')}</td>
+      <td class="mono colBinPos">${escapeHtml(a.binPos || '')}</td>
       <td class="colAction">${actionBtn}</td>
     `;
     tbody.appendChild(tr);
@@ -830,24 +1097,10 @@ function updateBin(id, value){
   a.shelf = parts[2] || '';
   a.binPos = parts[3] || '';
 
-  const isLastRow = assignments.length && assignments[assignments.length - 1].id === id;
-
-  if(isSequenceMode() && isLastRow && a.zone && a.bay && a.shelf && a.binPos){
-    currentZone = a.zone;
-    currentBay = Math.max(1, n(a.bay) || 1);
-    currentShelf = Math.max(1, n(a.shelf) || 1);
-
-    const editedBinPos = Math.max(1, n(a.binPos) || 1);
-    currentBinNum = isHoldBinOn() ? editedBinPos : editedBinPos + 1;
-
-    syncInputsFromState();
-    setStatus('Last row bin updated — counter adjusted','info');
-  } else {
-    setStatus('WH Bin updated','info');
-  }
-
+  setStatus('WH Bin updated','info');
+  setDuplicateBadge();
   saveState();
-  updateDisplays();
+  render();
 }
 function clearAssignments(){
   if(!confirm('Clear assignment list and reset history?')) return;
@@ -867,6 +1120,7 @@ function clearAssignments(){
   }
 
   setStatus('Cleared','warn');
+  setDuplicateBadge();
   render();
   saveState();
 }
@@ -876,6 +1130,9 @@ function escapeHtml(s){
     .replace(/</g,'&lt;')
     .replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;');
+}
+function structuredCloneSafe(v){
+  return JSON.parse(JSON.stringify(v));
 }
 function currentZoneBayForFiles(){
   const z = currentZone || (assignments[0]?.zone || 'ZONE');
@@ -961,8 +1218,7 @@ function saveState(){
     partialShelfInput: document.getElementById('partialShelfInput').value,
     partialBinInput: document.getElementById('partialBinInput').value,
     quickBinInput: document.getElementById('quickBinInput').value,
-    keepSameBin: document.getElementById('keepSameBin').checked,
-    holdBin: document.getElementById('holdBin').checked
+    keepSameBin: document.getElementById('keepSameBin').checked
   };
   localStorage.setItem(STATE_KEY, JSON.stringify(state));
   setDraftStatus('Draft saved');
@@ -992,7 +1248,6 @@ function restoreState(){
     document.getElementById('partialBinInput').value = s.partialBinInput || pad2(currentBinNum);
     document.getElementById('quickBinInput').value = s.quickBinInput || '';
     document.getElementById('keepSameBin').checked = s.keepSameBin !== false;
-    document.getElementById('holdBin').checked = !!s.holdBin;
 
     setMode(mode);
     render();
@@ -1041,10 +1296,6 @@ document.getElementById('quickBinInput').addEventListener('input', () => {
   saveState();
 });
 document.getElementById('keepSameBin').addEventListener('change', saveState);
-document.getElementById('holdBin').addEventListener('change', () => {
-  updateDisplays();
-  saveState();
-});
 
 loadCSV();
 setMode('bulk');
