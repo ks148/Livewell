@@ -61,7 +61,7 @@ let pickIndex = new Map();
 let confirmMode = false;
 let currentIdx = 0;
 
-/******** LOAD CSV ********/
+/******** CSV LOAD ********/
 fetch('../pickle-data.csv')
 .then(r=>r.text())
 .then(text=>{
@@ -83,12 +83,40 @@ function sortByBin(a,b){
   for(let i=0;i<sa.length;i++){
     if(i===0){
       if(sa[i]!==sb[i]) return sa[i].localeCompare(sb[i]);
-    }else{
+    } else {
       let na=parseInt(sa[i]), nb=parseInt(sb[i]);
       if(na!==nb) return na-nb;
     }
   }
   return 0;
+}
+
+/******** HELPERS ********/
+function isComplete(p){
+  return (p.plyPicked>=p.plyPlan && p.ghPicked>=p.ghPlan);
+}
+
+function moveToNextItem(){
+  for(let i=currentIdx+1;i<lastPick.length;i++){
+    if(!isComplete(lastPick[i])){
+      currentIdx=i;
+      renderTable();
+      document.getElementById('scanStatus').innerText = 'NEXT BIN: ' + lastPick[i].r[COL_WH_BIN];
+      return;
+    }
+  }
+  document.getElementById('scanStatus').innerText='PICK COMPLETE';
+}
+
+function forceComplete(idx){
+  if(idx!==currentIdx) return;
+
+  const p = lastPick[idx];
+  p.plyPicked = p.plyPlan;
+  p.ghPicked = p.ghPlan;
+
+  moveToNextItem();
+  renderTable();
 }
 
 /******** BUILD PICK ********/
@@ -120,6 +148,8 @@ function buildPick(){
 
 /******** TABLE ********/
 function renderTable(){
+  lastPick.sort(sortByBin);
+
   const tbody=document.getElementById('results');
   tbody.innerHTML='';
 
@@ -144,27 +174,11 @@ function renderTable(){
     <td>
       <button class="miniBtn" onclick="adjust(${idx},'ply',1)">+PLY</button>
       <button class="miniBtn" onclick="adjust(${idx},'gh',1)">+GH</button>
-      <button class="miniBtn" onclick="done(${idx})">Done</button>
+      <button class="miniBtn" onclick="forceComplete(${idx})">Done</button>
     </td>
     `;
     tbody.appendChild(tr);
   });
-}
-
-/******** HELPERS ********/
-function isComplete(p){
-  return (p.plyPicked>=p.plyPlan && p.ghPicked>=p.ghPlan);
-}
-
-function nextItem(){
-  for(let i=currentIdx+1;i<lastPick.length;i++){
-    if(!isComplete(lastPick[i])){
-      currentIdx=i;
-      renderTable();
-      return;
-    }
-  }
-  document.getElementById('scanStatus').innerText='PICK COMPLETE';
 }
 
 /******** ADJUST ********/
@@ -174,27 +188,15 @@ function adjust(idx,type,val){
   if(type==='ply') lastPick[idx].plyPicked+=val;
   if(type==='gh') lastPick[idx].ghPicked+=val;
 
-  if(isComplete(lastPick[idx])) nextItem();
+  if(isComplete(lastPick[idx])) moveToNextItem();
 
-  renderTable();
-}
-
-/******** DONE ********/
-function done(idx){
-  if(idx!==currentIdx) return;
-
-  const p=lastPick[idx];
-  p.plyPicked=p.plyPlan;
-  p.ghPicked=p.ghPlan;
-
-  nextItem();
   renderTable();
 }
 
 /******** SCAN ********/
 document.getElementById('confirmScan').addEventListener('keydown',e=>{
   if(e.key==='Enter'){
-    const q=e.target.value;
+    const q=e.target.value.trim();
     e.target.value='';
 
     const idx=pickIndex.get(q);
@@ -211,7 +213,7 @@ document.getElementById('confirmScan').addEventListener('keydown',e=>{
 
     lastPick[idx].plyPicked++;
 
-    if(isComplete(lastPick[idx])) nextItem();
+    if(isComplete(lastPick[idx])) moveToNextItem();
 
     renderTable();
   }
@@ -221,7 +223,11 @@ document.getElementById('confirmScan').addEventListener('keydown',e=>{
 function toggleConfirmMode(){
   confirmMode=!confirmMode;
   document.getElementById('confirmCard').style.display=confirmMode?'block':'none';
-  currentIdx=0;
+
+  if(confirmMode){
+    currentIdx=0;
+  }
+
   renderTable();
 }
 
