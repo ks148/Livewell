@@ -7,1252 +7,165 @@
 
 <style>
 body{font-family:system-ui;margin:20px;background:#f4f6f9}
-
-/* NAV */
-.topnav{
-  position:sticky; top:0; z-index:50;
-  background:#fff;
-  border:1px solid #e5e7eb;
-  border-radius:14px;
-  padding:10px;
-  margin-bottom:16px;
-  box-shadow:0 2px 10px rgba(0,0,0,.05);
-}
+.topnav{position:sticky;top:0;z-index:50;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:10px;margin-bottom:16px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
 .topnav .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .topnav .spacer{flex:1}
-.topnav a{text-decoration:none}
-.topnav button{
-  padding:8px 14px;border-radius:10px;border:1px solid #d1d5db;
-  font-weight:700;cursor:pointer;background:#fff;
-}
-.topnav button.active{
-  background:#111827;color:#fff;border-color:#111827;
-}
-
+.topnav button{padding:8px 14px;border-radius:10px;border:1px solid #d1d5db;font-weight:700;cursor:pointer;background:#fff}
+.topnav button.active{background:#111827;color:#fff;border-color:#111827}
 .card{background:#fff;padding:16px;border-radius:14px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
 .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-
 button{padding:8px 14px;border-radius:10px;border:1px solid #d1d5db;font-weight:700;cursor:pointer;background:#fff}
-button:disabled{opacity:.5;cursor:not-allowed}
+button:disabled{opacity:.5}
 .primary{background:#2563eb;color:#fff;border-color:#2563eb}
 .ghost{background:#0f172a;color:#fff;border-color:#0f172a}
-
-select,input[type="number"]{padding:6px 10px;border-radius:8px;border:1px solid #d1d5db;font-weight:600}
 table{width:100%;border-collapse:collapse}
-th,td{padding:8px;border-bottom:1px solid #e5e7eb;text-align:left;vertical-align:middle}
+th,td{padding:8px;border-bottom:1px solid #e5e7eb;text-align:left}
 th{background:#f1f5f9}
 .mono{font-family:monospace}
-.small{font-size:12px;color:#64748b;font-weight:700}
-
-.badge{display:inline-block;padding:4px 10px;border-radius:999px;font-weight:800;font-size:12px;border:1px solid #e5e7eb;background:#f8fafc}
-.badge.on{background:#dcfce7;border-color:#86efac;color:#166534}
-.badge.off{background:#fee2e2;border-color:#fecaca;color:#7f1d1d}
-.badge.warn{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
-
-.scanbox{font-size:22px;padding:10px 12px;width:320px;max-width:100%;border-radius:10px;border:1px solid #cbd5e1}
-.k{font-weight:900}
-.miniBtn{padding:6px 10px;border-radius:10px;border:1px solid #d1d5db;font-weight:900;cursor:pointer;background:#fff}
-.miniBtn:disabled{opacity:.4;cursor:not-allowed}
-
-.currentRow{
-  background:#dbeafe;
-}
+.scanbox{font-size:22px;padding:10px;width:320px;border-radius:10px;border:1px solid #cbd5e1}
+.currentRow{background:#dbeafe}
 </style>
 </head>
 
 <body>
 
-<!-- NAV -->
-<div class="topnav">
-  <div class="row">
-    <a href="../index.html"><button>🏠 Home</button></a>
-    <a href="../Picks/index.html"><button class="active">📋 Picks</button></a>
-    <a href="../putaway/index.html"><button>📦 Putaway</button></a>
-    <a href="../bin/index.html"><button>📍 Bin Lookup</button></a>
-    <a href="../manual/index.html"><button>📘 Manual</button></a>
-    <div class="spacer"></div>
-    <div class="small">Ops Tools</div>
-  </div>
-</div>
-
 <h1>Picks</h1>
 
 <div class="card">
-  <div class="row">
-    <span id="csvStatus" class="badge warn">CSV: Loading…</span>
-
-    <label>Pick FROM:</label>
-    <select id="fromLoc">
-      <option value="warehouse" selected>Warehouse-66</option>
-      <option value="container">Container - PLY</option>
-      <option value="green">Green Harbor</option>
-      <option value="plymouth">Plymouth</option>
-    </select>
-
-    <label>Pick TO:</label>
-    <select id="toLoc">
-      <option value="plymouth">Plymouth</option>
-      <option value="green">Green Harbor</option>
-      <option value="both">Both</option>
-    </select>
-
-    <button class="primary" onclick="buildPick()" id="buildBtn" disabled>Build Pick</button>
-    <button onclick="downloadPickerCSV()" id="pickerBtn" disabled>Download Pick</button>
-    <button class="ghost" onclick="toggleConfirmMode()" id="confirmBtn" disabled>Confirm (Scan)</button>
-    <button onclick="downloadShopifyCSV()" id="shopifyBtn" disabled>Shopify Upload</button>
-
-    <span id="confirmState" class="badge off">Confirm Mode: OFF</span>
-  </div>
-
-  <!-- DRAFT SAVE CONTROLS -->
-  <div class="row" style="margin-top:10px">
-    <button type="button" onclick="draftSaveNow()">Save Draft</button>
-    <button type="button" onclick="draftLoadNow()">Load Draft</button>
-    <button type="button" onclick="draftExport()">Export Draft (JSON)</button>
-    <button type="button" onclick="draftImport()">Import Draft (JSON)</button>
-    <button type="button" class="ghost" onclick="draftClear()">Clear Draft</button>
-    <span id="draftStatus" class="small"></span>
-  </div>
-
-  <div class="small" style="margin-top:8px">
-    Auto-saves while you work. Refresh / switching tools / closing the tab won’t lose this page’s progress.
-  </div>
+<button class="primary" onclick="buildPick()">Build Pick</button>
+<button onclick="toggleConfirmMode()">Confirm Mode</button>
 </div>
 
 <div class="card" id="confirmCard" style="display:none">
-  <div class="row" style="justify-content:space-between;align-items:flex-start">
-    <div>
-      <div class="k" style="margin-bottom:6px">Confirm Pick by Barcode Scan</div>
-      <div class="small">
-        Scan what is physically staged to move. Counts build automatically.
-        For <span class="k">BOTH</span> picks, scans auto-allocate to the destination(s) that still need that item.
-      </div>
-    </div>
-    <div class="small" id="confirmMeta"></div>
-  </div>
-
-  <div class="row" style="margin-top:12px;align-items:center">
-    <input id="confirmScan" class="scanbox" placeholder="Scan barcode or SKU + Enter" autocomplete="off" inputmode="none">
-
-    <label class="row" style="gap:8px">
-      <span class="small">Scan Qty</span>
-      <input id="scanQty" type="number" min="1" step="1" value="1" style="width:90px">
-    </label>
-
-    <span id="priorityWrap" class="row" style="gap:8px;display:none">
-      <span class="small">Allocation</span>
-      <select id="allocPriority">
-        <option value="ply_first" selected>Fill PLY then GH</option>
-        <option value="gh_first">Fill GH then PLY</option>
-      </select>
-    </span>
-
-    <label class="row" style="gap:8px">
-      <input type="checkbox" id="allowOver" />
-      <span class="small">Allow overpick</span>
-    </label>
-
-    <div style="flex:1"></div>
-
-    <button class="miniBtn" type="button" onclick="resetConfirmed()">Reset Confirmed</button>
-  </div>
-
-  <div id="scanStatus" class="badge" style="margin-top:12px">Ready to scan</div>
+<input id="confirmScan" class="scanbox" placeholder="Scan">
 </div>
 
 <div class="card">
-  <table>
-    <thead>
-      <tr id="tableHead"></tr>
-    </thead>
-    <tbody id="results"></tbody>
-  </table>
+<table>
+<thead>
+<tr>
+<th>Barcode</th>
+<th>Title</th>
+<th>Bin</th>
+<th>Planned</th>
+<th>Picked</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody id="results"></tbody>
+</table>
 </div>
 
 <script>
-/** DATA SOURCE **/
-const CSV_URL = '../pickle-data.csv';
-
-/** COLUMN NAMES **/
-const COL_BARCODE = 'Variant Barcode';
-const COL_TITLE = 'Title';
-const COL_WH_BIN = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
-const SKU_CANDIDATES = ['Variant SKU','SKU','sku','variant_sku'];
-
-const COL_WH_AV = 'Inventory Available: Warehouse-66';
-const COL_PLY_ON = 'Inventory Available: Plymouth';
-const COL_GH_ON = 'Inventory Available: Green Harbor';
-
-const COL_PLY_MIN = 'Variant Metafield: custom.minply [number_integer]';
-const COL_PLY_MAX = 'Variant Metafield: custom.maxply [number_integer]';
-const COL_GH_MIN = 'Variant Metafield: custom.mingh [number_integer]';
-const COL_GH_MAX = 'Variant Metafield: custom.maxgh [number_integer]';
-
-let rows = [];
 let lastPick = [];
-let meta = null;
-
-let dataLoaded = false;
-
 let confirmMode = false;
+let currentIdx = 0;
 let pickIndex = new Map();
 
-// guided confirm flow
-let currentIdx = 0;
-
-// duplicate scan protection (scanner double-fire)
-const DUP_WINDOW_MS = 350;
-let lastConfirmScan = { key:'', ts:0 };
-
-const csvStatusEl = document.getElementById('csvStatus');
-const buildBtn = document.getElementById('buildBtn');
-
-/* ===============================
-   LIVEWELL STATE KIT (v1) - PICKS
-   =============================== */
-const STATE_KEY = 'livewell:picks:v1';
-const STATE_VERSION = 1;
-const draftStatusEl = document.getElementById('draftStatus');
-let _saveTimer = null;
-let _didAutoRestore = false;
-
-function nowISO(){ return new Date().toISOString(); }
-
-function setDraftStatus(msg){
-  if(draftStatusEl) draftStatusEl.textContent = msg || '';
-}
-
-function saveDraft(key, stateObj){
-  const payload = { _meta:{ version: STATE_VERSION, savedAt: nowISO() }, state: stateObj };
-  localStorage.setItem(key, JSON.stringify(payload));
-}
-
-function loadDraft(key){
-  const raw = localStorage.getItem(key);
-  if(!raw) return null;
-  try{
-    const payload = JSON.parse(raw);
-    if(!payload || !payload.state) return null;
-    return payload;
-  }catch{ return null; }
-}
-
-function clearDraft(key){ localStorage.removeItem(key); }
-
-function downloadJSON(filename, obj){
-  const text = JSON.stringify(obj, null, 2);
-  const blob = new Blob([text], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-function pickFile(accept){
-  return new Promise((resolve)=>{
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = accept || '.json,application/json';
-    input.onchange = () => resolve(input.files?.[0] || null);
-    input.click();
-  });
-}
-
-async function loadJSONFile(){
-  const file = await pickFile('.json,application/json');
-  if(!file) return null;
-  const text = await file.text();
-  return JSON.parse(text);
-}
-
-function getState(){
-  return {
-    ui: {
-      fromLoc: document.getElementById('fromLoc')?.value || 'warehouse',
-      toLoc: document.getElementById('toLoc')?.value || 'plymouth',
-      confirmCardVisible: document.getElementById('confirmCard')?.style?.display || 'none',
-      allowOver: !!document.getElementById('allowOver')?.checked,
-      scanQty: Number(document.getElementById('scanQty')?.value || 1),
-      allocPriority: document.getElementById('allocPriority')?.value || 'ply_first'
-    },
-    data: {
-      meta: meta ? {...meta} : null,
-      confirmMode: !!confirmMode,
-      currentIdx: Number(currentIdx || 0),
-      lastPick: Array.isArray(lastPick) ? lastPick.map(p=>({
-        toSel: p.toSel,
-        whAvail: p.whAvail,
-        plyPlan: p.plyPlan,
-        ghPlan: p.ghPlan,
-        plyPicked: p.plyPicked,
-        ghPicked: p.ghPicked,
-        shortageDone: !!p.shortageDone,
-        barcode: String(p.r?.[COL_BARCODE] || '').trim(),
-        sku: (function(){
-          try{ return getSku(p.r); }catch{ return ''; }
-        })()
-      })) : []
-    }
-  };
-}
-
-function applyState(st){
-  const ui = st.ui || {};
-  const fromEl = document.getElementById('fromLoc');
-  const toEl = document.getElementById('toLoc');
-  if(fromEl && ui.fromLoc) fromEl.value = ui.fromLoc;
-  if(toEl && ui.toLoc) toEl.value = ui.toLoc;
-
-  const allowOverEl = document.getElementById('allowOver');
-  if(allowOverEl) allowOverEl.checked = !!ui.allowOver;
-
-  const scanQtyEl = document.getElementById('scanQty');
-  if(scanQtyEl) scanQtyEl.value = String(Math.max(1, Math.floor(Number(ui.scanQty || 1))));
-
-  const allocEl = document.getElementById('allocPriority');
-  if(allocEl && ui.allocPriority) allocEl.value = ui.allocPriority;
-
-  meta = st.data?.meta ? {...st.data.meta} : null;
-  confirmMode = !!st.data?.confirmMode;
-
-  const saved = Array.isArray(st.data?.lastPick) ? st.data.lastPick : [];
-  lastPick = [];
-  pickIndex = new Map();
-
-  if(saved.length && rows.length){
-    saved.forEach(s=>{
-      const match = rows.find(r=>{
-        const b = String(r[COL_BARCODE]||'').trim();
-        const sku = getSku(r);
-        return (s.barcode && b === s.barcode) || (s.sku && sku === s.sku);
-      });
-      if(!match) return;
-
-      const item = {
-        r: match,
-        toSel: s.toSel || (meta?.toSelection || document.getElementById('toLoc')?.value || 'plymouth'),
-        whAvail: Number(s.whAvail||0),
-        plyPlan: Number(s.plyPlan||0),
-        ghPlan: Number(s.ghPlan||0),
-        plyPicked: Number(s.plyPicked||0),
-        ghPicked: Number(s.ghPicked||0),
-        shortageDone: !!s.shortageDone
-      };
-      lastPick.push(item);
-    });
-  }
+function buildPick(){
+  lastPick = [
+    {barcode:'111',title:'Item A',bin:'A-01-01',plan:3,picked:0},
+    {barcode:'222',title:'Item B',bin:'B-01-01',plan:2,picked:0}
+  ];
 
   sortLastPick();
-  rebuildPickIndex();
-  currentIdx = normalizeCurrentIdx(Number(st.data?.currentIdx || 0));
-
-  if(meta && lastPick.length){
-    renderHead(meta.toSelection || document.getElementById('toLoc')?.value || 'plymouth');
-    renderTable();
-
-    document.getElementById('pickerBtn').disabled = false;
-    document.getElementById('confirmBtn').disabled = false;
-    document.getElementById('shopifyBtn').disabled = false;
-
-    setConfirmUI(!!confirmMode);
-
-    document.getElementById('priorityWrap').style.display =
-      ((meta.toSelection || document.getElementById('toLoc')?.value) === 'both') ? 'flex' : 'none';
-  }
+  rebuildIndex();
+  currentIdx = 0;
+  render();
 }
 
-function scheduleSave(delayMs=150){
-  clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(()=> {
-    try{
-      saveDraft(STATE_KEY, getState());
-      setDraftStatus(`Auto-saved ${new Date().toLocaleTimeString()}`);
-    }catch{}
-  }, delayMs);
-}
-
-function autoRestoreDraftOnce(){
-  if(_didAutoRestore) return;
-  _didAutoRestore = true;
-  const payload = loadDraft(STATE_KEY);
-  if(payload?.state){
-    applyState(payload.state);
-    setDraftStatus(`Restored draft (${new Date(payload._meta?.savedAt || Date.now()).toLocaleString()})`);
-  } else {
-    setDraftStatus('No saved draft (yet)');
-  }
-}
-
-function draftSaveNow(){
-  saveDraft(STATE_KEY, getState());
-  setDraftStatus(`Saved ${new Date().toLocaleTimeString()}`);
-}
-
-function draftLoadNow(){
-  const payload = loadDraft(STATE_KEY);
-  if(!payload){ setDraftStatus('No draft found'); return; }
-  applyState(payload.state);
-  setDraftStatus(`Loaded draft (${new Date(payload._meta?.savedAt || Date.now()).toLocaleString()})`);
-}
-
-function draftClear(){
-  if(!confirm('Clear saved draft for Picks?')) return;
-  clearDraft(STATE_KEY);
-  setDraftStatus('Draft cleared');
-}
-
-function draftExport(){
-  const payload = { _exportedAt: nowISO(), key: STATE_KEY, state: getState() };
-  downloadJSON(`LIVEWELL_PICKS_DRAFT_${new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')}.json`, payload);
-  setDraftStatus('Exported JSON');
-}
-
-async function draftImport(){
-  try{
-    const obj = await loadJSONFile();
-    const st = obj?.state || obj;
-    applyState(st);
-    saveDraft(STATE_KEY, getState());
-    setDraftStatus('Imported + saved');
-  }catch{
-    alert('Could not import JSON draft.');
-  }
-}
-
-function setCSVStatus(text, kind){
-  csvStatusEl.textContent = text;
-  csvStatusEl.className = 'badge ' + (kind || 'warn');
-}
-
-function n(v){
-  const num = Number(String(v ?? '').trim());
-  return Number.isFinite(num) ? Math.floor(num) : 0;
-}
-function need(on,min,max){
-  if(!(on < min)) return 0;
-  return Math.max(max - on, 0);
-}
-function getSku(row){
-  for(const k of SKU_CANDIDATES){
-    if(k in row && row[k]){
-      const v = String(row[k]||'').trim();
-      if(v) return v;
-    }
-  }
-  return '';
-}
-function pad(x){ return String(x).padStart(2,'0'); }
-function nowStamp(){
-  const d = new Date();
-  return {
-    date: `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`,
-    time: `${pad(d.getHours())}${pad(d.getMinutes())}`
-  };
-}
-function locCode(val){
-  if(val === 'warehouse') return 'WH';
-  if(val === 'container') return 'PLYMCon';
-  if(val === 'plymouth') return 'PLY';
-  if(val === 'green') return 'GH';
-  if(val === 'both') return 'BOTH';
-  return String(val||'').toUpperCase();
-}
-
-/** BIN SORT / GUIDED PICK HELPERS **/
 function parseBin(bin){
-  return String(bin || '').trim().toUpperCase().split('-').filter(Boolean);
+  return bin.split('-');
 }
 
-function compareBins(a, b){
-  const sa = parseBin(a);
-  const sb = parseBin(b);
-  const maxLen = Math.max(sa.length, sb.length);
-
-  for(let i = 0; i < maxLen; i++){
-    const va = sa[i] || '';
-    const vb = sb[i] || '';
-    if(va === vb) continue;
-
-    if(i === 0){
-      return va.localeCompare(vb, undefined, { numeric:true, sensitivity:'base' });
-    }
-
-    const na = parseInt(va, 10);
-    const nb = parseInt(vb, 10);
-
-    if(!Number.isNaN(na) && !Number.isNaN(nb)){
-      if(na !== nb) return na - nb;
-    } else {
-      return va.localeCompare(vb, undefined, { numeric:true, sensitivity:'base' });
-    }
-  }
-  return 0;
-}
-
-function sortByBin(a, b){
-  const binCmp = compareBins(
-    String(a?.r?.[COL_WH_BIN] || ''),
-    String(b?.r?.[COL_WH_BIN] || '')
-  );
-  if(binCmp !== 0) return binCmp;
-
-  const skuCmp = getSku(a.r || {}).localeCompare(getSku(b.r || {}), undefined, { numeric:true, sensitivity:'base' });
-  if(skuCmp !== 0) return skuCmp;
-
-  return String(a?.r?.[COL_BARCODE] || '').localeCompare(String(b?.r?.[COL_BARCODE] || ''), undefined, { numeric:true, sensitivity:'base' });
+function compareBins(a,b){
+  const pa = parseBin(a);
+  const pb = parseBin(b);
+  return pa[0].localeCompare(pb[0]) || pa[1]-pb[1] || pa[2]-pb[2];
 }
 
 function sortLastPick(){
-  lastPick.sort(sortByBin);
+  lastPick.sort((a,b)=>compareBins(a.bin,b.bin));
 }
 
-function rebuildPickIndex(){
+function rebuildIndex(){
   pickIndex.clear();
-  lastPick.forEach((p, idx)=>{
-    const barcode = String(p.r?.[COL_BARCODE] || '').trim();
-    if(barcode) pickIndex.set(barcode, idx);
-    const sku = getSku(p.r || {});
-    if(sku) pickIndex.set(sku, idx);
+  lastPick.forEach((p,i)=>{
+    pickIndex.set(p.barcode,i);
   });
 }
 
-function remainingForItem(p){
-  return {
-    ply: Math.max((p.plyPlan||0) - (p.plyPicked||0), 0),
-    gh: Math.max((p.ghPlan||0) - (p.ghPicked||0), 0)
-  };
-}
+function render(){
+  const tbody=document.getElementById('results');
+  tbody.innerHTML='';
+  lastPick.forEach((p,i)=>{
+    const tr=document.createElement('tr');
+    if(i===currentIdx && confirmMode) tr.classList.add('currentRow');
 
-function isItemComplete(p){
-  const rem = remainingForItem(p);
-  if(p.toSel === 'plymouth') return rem.ply <= 0;
-  if(p.toSel === 'green') return rem.gh <= 0;
-  return rem.ply <= 0 && rem.gh <= 0;
-}
-
-function isItemClosed(p){
-  return !!p.shortageDone || isItemComplete(p);
-}
-
-function firstOpenIndex(start=0){
-  if(!lastPick.length) return 0;
-  const s = Math.max(0, Math.min(start, lastPick.length - 1));
-  for(let i = s; i < lastPick.length; i++){
-    if(!isItemClosed(lastPick[i])) return i;
-  }
-  for(let i = 0; i < s; i++){
-    if(!isItemClosed(lastPick[i])) return i;
-  }
-  return lastPick.length - 1;
-}
-
-function normalizeCurrentIdx(idx){
-  if(!lastPick.length) return 0;
-  const hasOpen = lastPick.some(p => !isItemClosed(p));
-  if(!hasOpen) return Math.max(0, Math.min(idx, lastPick.length - 1));
-  return firstOpenIndex(idx);
-}
-
-function moveToNextOpenItem(){
-  if(!lastPick.length){
-    currentIdx = 0;
-    return false;
-  }
-
-  const hasOpen = lastPick.some(p => !isItemClosed(p));
-  if(!hasOpen){
-    currentIdx = Math.max(0, lastPick.length - 1);
-    renderTable();
-    setStatusBadge('✅ PICK COMPLETE', 'ok');
-    scheduleSave();
-    return false;
-  }
-
-  currentIdx = firstOpenIndex(currentIdx + 1);
-  renderTable();
-  const p = lastPick[currentIdx];
-  const bin = String(p?.r?.[COL_WH_BIN] || '').trim() || '(no bin)';
-  setStatusBadge(`NEXT BIN: ${bin} — ${p?.r?.[COL_TITLE] || ''}`, 'warn');
-  scheduleSave();
-  return true;
-}
-
-function maybeAdvanceCurrent(){
-  const p = lastPick[currentIdx];
-  if(!p) return;
-  if(isItemComplete(p)){
-    moveToNextOpenItem();
-  }
-}
-
-/** Robust CSV parser (handles commas + quotes) */
-function parseCSV(text){
-  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-  const out = [];
-  let row = [];
-  let field = '';
-  let inQuotes = false;
-
-  if(text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
-
-  for(let i=0;i<text.length;i++){
-    const c = text[i];
-
-    if(inQuotes){
-      if(c === '"'){
-        if(text[i+1] === '"'){ field += '"'; i++; }
-        else inQuotes = false;
-      } else {
-        field += c;
-      }
-    } else {
-      if(c === '"') inQuotes = true;
-      else if(c === ','){ row.push(field); field=''; }
-      else if(c === '\n'){
-        row.push(field); field='';
-        if(row.length > 1 || (row.length === 1 && row[0].trim() !== '')) out.push(row);
-        row = [];
-      } else field += c;
-    }
-  }
-  row.push(field);
-  if(row.length > 1 || (row.length === 1 && row[0].trim() !== '')) out.push(row);
-
-  if(!out.length) return { headers: [], records: [] };
-
-  const headers = out[0].map(h => String(h ?? '').trim());
-  const records = out.slice(1).map(r=>{
-    const obj = {};
-    headers.forEach((h, idx)=> {
-      obj[h] = (r[idx] ?? '').trim();
-    });
-    return obj;
-  });
-  return { headers, records };
-}
-
-async function loadCSV(){
-  try{
-    setCSVStatus('CSV: Loading…', 'warn');
-    buildBtn.disabled = true;
-    dataLoaded = false;
-
-    const res = await fetch(CSV_URL + '?v=' + Date.now(), { cache:'no-store' });
-    if(!res.ok) throw new Error('HTTP ' + res.status);
-
-    const text = await res.text();
-    const parsed = parseCSV(text);
-    rows = parsed.records || [];
-
-    dataLoaded = true;
-    buildBtn.disabled = false;
-    setCSVStatus(`CSV: Loaded (${rows.length} rows)`, 'on');
-
-    autoRestoreDraftOnce();
-  }catch(e){
-    rows = [];
-    dataLoaded = false;
-    buildBtn.disabled = true;
-    setCSVStatus(`CSV: FAILED (${e.message})`, 'off');
-    alert('Could not load pickle-data.csv. Check the path: ' + CSV_URL);
-  }
-}
-
-function renderHead(toSel){
-  let h = `<th>Barcode</th><th>SKU</th><th>Title</th><th>WH Bin</th><th>WH Avail</th>`;
-  if(toSel === 'plymouth'){
-    h += `<th>Planned PLY</th><th>Confirmed PLY</th><th>Remaining</th><th>Adjust</th>`;
-  } else if(toSel === 'green'){
-    h += `<th>Planned GH</th><th>Confirmed GH</th><th>Remaining</th><th>Adjust</th>`;
-  } else {
-    h += `<th>Planned PLY</th><th>Confirmed PLY</th><th>Remaining PLY</th>
-          <th>Planned GH</th><th>Confirmed GH</th><th>Remaining GH</th><th>Adjust</th>`;
-  }
-  document.getElementById('tableHead').innerHTML = h;
-}
-
-function buildPick(){
-  if(!dataLoaded){
-    alert('CSV not loaded yet. Please wait for CSV: Loaded.');
-    return;
-  }
-
-  const from = document.getElementById('fromLoc').value;
-  const toSel = document.getElementById('toLoc').value;
-
-  confirmMode = false;
-  setConfirmUI(false);
-
-  renderHead(toSel);
-  lastPick = [];
-  pickIndex.clear();
-  currentIdx = 0;
-  document.getElementById('results').innerHTML='';
-
-  rows.forEach(r=>{
-    const barcode = String(r[COL_BARCODE] || '').trim();
-    const title = String(r[COL_TITLE] || '').trim();
-    if(!barcode && !title) return;
-
-    const wh = n(r[COL_WH_AV]);
-    if(wh <= 0) return;
-
-    const plyNeed = need(n(r[COL_PLY_ON]), n(r[COL_PLY_MIN]), n(r[COL_PLY_MAX]));
-    const ghNeed  = need(n(r[COL_GH_ON]),  n(r[COL_GH_MIN]),  n(r[COL_GH_MAX]));
-
-    let plyPlan = 0, ghPlan = 0;
-    if(toSel === 'plymouth') plyPlan = Math.min(plyNeed, wh);
-    else if(toSel === 'green') ghPlan = Math.min(ghNeed, wh);
-    else {
-      plyPlan = Math.min(plyNeed, wh);
-      ghPlan  = Math.min(ghNeed, wh - plyPlan);
-    }
-
-    if(plyPlan <= 0 && ghPlan <= 0) return;
-
-    const item = {
-      r,
-      toSel,
-      whAvail: wh,
-      plyPlan, ghPlan,
-      plyPicked: 0,
-      ghPicked: 0,
-      shortageDone: false
-    };
-    lastPick.push(item);
-  });
-
-  sortLastPick();
-  rebuildPickIndex();
-  currentIdx = 0;
-
-  renderTable();
-
-  if(!lastPick.length){
-    document.getElementById('pickerBtn').disabled = true;
-    document.getElementById('confirmBtn').disabled = true;
-    document.getElementById('shopifyBtn').disabled = true;
-    alert('No pick lines generated (nothing below min/max or no WH availability).');
-    scheduleSave();
-    return;
-  }
-
-  const stamp = nowStamp();
-  meta = {
-    from: locCode(from),
-    to: locCode(toSel),
-    date: stamp.date,
-    time: stamp.time,
-    toSelection: toSel
-  };
-
-  document.getElementById('pickerBtn').disabled = false;
-  document.getElementById('confirmBtn').disabled = false;
-  document.getElementById('shopifyBtn').disabled = false;
-
-  document.getElementById('priorityWrap').style.display = (toSel === 'both') ? 'flex' : 'none';
-
-  scheduleSave();
-}
-
-function renderTable(){
-  sortLastPick();
-  rebuildPickIndex();
-
-  const tbody = document.getElementById('results');
-  tbody.innerHTML = '';
-
-  lastPick.forEach((p, idx)=>{
-    const barcode = String(p.r[COL_BARCODE] || '').trim();
-    const sku = getSku(p.r);
-    const title = String(p.r[COL_TITLE] || '').trim();
-    const bin = String(p.r[COL_WH_BIN] || '').trim();
-
-    const plyRemain = Math.max((p.plyPlan||0) - (p.plyPicked||0), 0);
-    const ghRemain  = Math.max((p.ghPlan||0) - (p.ghPicked||0), 0);
-
-    const adjustBtns = ()=>{
-      const dis = (!confirmMode || idx !== currentIdx ? 'disabled' : '');
-      const btnMinusPLY = `<button class="miniBtn" type="button" ${dis} onclick="adjustPicked(${idx},'ply',-1)">- PLY</button>`;
-      const btnPlusPLY  = `<button class="miniBtn" type="button" ${dis} onclick="adjustPicked(${idx},'ply',+1)">+ PLY</button>`;
-      const btnMinusGH  = `<button class="miniBtn" type="button" ${dis} onclick="adjustPicked(${idx},'gh',-1)">- GH</button>`;
-      const btnPlusGH   = `<button class="miniBtn" type="button" ${dis} onclick="adjustPicked(${idx},'gh',+1)">+ GH</button>`;
-      const btnDone     = `<button class="miniBtn" type="button" ${dis} onclick="doneCurrent(${idx})">Done</button>`;
-
-      if(p.toSel === 'plymouth') return `<div class="row" style="gap:6px">${btnMinusPLY}${btnPlusPLY}${btnDone}</div>`;
-      if(p.toSel === 'green') return `<div class="row" style="gap:6px">${btnMinusGH}${btnPlusGH}${btnDone}</div>`;
-      return `<div class="row" style="gap:6px;flex-wrap:wrap">${btnMinusPLY}${btnPlusPLY}${btnMinusGH}${btnPlusGH}${btnDone}</div>`;
-    };
-
-    const tr = document.createElement('tr');
-    if(confirmMode && idx === currentIdx) tr.classList.add('currentRow');
-
-    let row = `
-      <td class="mono">${barcode}</td>
-      <td class="mono">${sku}</td>
-      <td>${title}</td>
-      <td class="mono">${bin}</td>
-      <td class="mono">${p.whAvail}</td>
+    tr.innerHTML=`
+    <td>${p.barcode}</td>
+    <td>${p.title}</td>
+    <td>${p.bin}</td>
+    <td>${p.plan}</td>
+    <td>${p.picked}</td>
+    <td><button onclick="done(${i})">Done</button></td>
     `;
-
-    if(p.toSel === 'plymouth'){
-      row += `<td class="mono">${p.plyPlan}</td>
-              <td class="mono">${p.plyPicked}</td>
-              <td class="mono">${plyRemain}</td>
-              <td>${adjustBtns()}</td>`;
-    } else if(p.toSel === 'green'){
-      row += `<td class="mono">${p.ghPlan}</td>
-              <td class="mono">${p.ghPicked}</td>
-              <td class="mono">${ghRemain}</td>
-              <td>${adjustBtns()}</td>`;
-    } else {
-      row += `<td class="mono">${p.plyPlan}</td>
-              <td class="mono">${p.plyPicked}</td>
-              <td class="mono">${plyRemain}</td>
-              <td class="mono">${p.ghPlan}</td>
-              <td class="mono">${p.ghPicked}</td>
-              <td class="mono">${ghRemain}</td>
-              <td>${adjustBtns()}</td>`;
-    }
-
-    tr.innerHTML = row;
     tbody.appendChild(tr);
   });
-
-  scheduleSave();
-}
-
-function setConfirmUI(on){
-  const badge = document.getElementById('confirmState');
-  const card = document.getElementById('confirmCard');
-
-  if(on){
-    badge.textContent = 'Confirm Mode: ON';
-    badge.classList.remove('off'); badge.classList.add('on');
-    card.style.display = 'block';
-    updateConfirmMeta();
-    setTimeout(()=>document.getElementById('confirmScan').focus(), 50);
-  } else {
-    badge.textContent = 'Confirm Mode: OFF';
-    badge.classList.remove('on'); badge.classList.add('off');
-    card.style.display = 'none';
-  }
-  renderTable();
-}
-
-function updateConfirmMeta(){
-  const el = document.getElementById('confirmMeta');
-  if(!meta){ el.textContent = ''; return; }
-  el.innerHTML = `
-    <div><span class="small">FROM</span> <span class="mono">${meta.from}</span></div>
-    <div><span class="small">TO</span> <span class="mono">${meta.to}</span></div>
-    <div><span class="small">Pick</span> <span class="mono">${meta.date} ${meta.time}</span></div>
-  `;
-}
-
-function setStatusBadge(text, kind){
-  const el = document.getElementById('scanStatus');
-  el.className = 'badge';
-  if(kind === 'ok') el.classList.add('on');
-  else if(kind === 'bad') el.classList.add('off');
-  else if(kind === 'warn') el.classList.add('warn');
-  el.textContent = text;
 }
 
 function toggleConfirmMode(){
-  if(!meta || !lastPick.length) return;
+  confirmMode=!confirmMode;
+  document.getElementById('confirmCard').style.display=confirmMode?'block':'none';
+  render();
+}
 
-  if(!confirmMode){
-    const ok = confirm(
-      'Start Confirm Mode?\n\nThis will RESET all Confirmed counts to 0.\nConfirm by scanning what is physically staged.\n\nContinue?'
-    );
-    if(!ok) return;
+function isComplete(p){
+  return p.picked>=p.plan;
+}
 
-    lastPick.forEach(p=>{
-      p.plyPicked = 0;
-      p.ghPicked = 0;
-      p.shortageDone = false;
-    });
-
-    sortLastPick();
-    rebuildPickIndex();
-    currentIdx = firstOpenIndex(0);
-
-    confirmMode = true;
-    setConfirmUI(true);
-
-    const first = lastPick[currentIdx];
-    if(first){
-      const bin = String(first.r?.[COL_WH_BIN] || '').trim() || '(no bin)';
-      setStatusBadge(`START: ${bin} — ${first.r?.[COL_TITLE] || ''}`, 'warn');
-    } else {
-      setStatusBadge('Ready to scan', 'warn');
+function moveNext(){
+  for(let i=0;i<lastPick.length;i++){
+    if(!isComplete(lastPick[i])){
+      currentIdx=i;
+      render();
+      return;
     }
-  } else {
-    confirmMode = false;
-    setConfirmUI(false);
   }
-  scheduleSave();
+  alert('Pick complete');
 }
 
-function resetConfirmed(){
+function done(i){
+  if(i!==currentIdx) return;
+  moveNext();
+}
+
+function handleScan(q){
   if(!confirmMode) return;
-  const ok = confirm('Reset confirmed counts back to 0?');
-  if(!ok) return;
-
-  lastPick.forEach(p=>{
-    p.plyPicked = 0;
-    p.ghPicked = 0;
-    p.shortageDone = false;
-  });
-
-  sortLastPick();
-  rebuildPickIndex();
-  currentIdx = firstOpenIndex(0);
-
-  renderTable();
-
-  const first = lastPick[currentIdx];
-  if(first){
-    const bin = String(first.r?.[COL_WH_BIN] || '').trim() || '(no bin)';
-    setStatusBadge(`RESET — BACK TO: ${bin} — ${first.r?.[COL_TITLE] || ''}`, 'warn');
-  } else {
-    setStatusBadge('Confirmed counts reset to 0', 'warn');
-  }
-
-  document.getElementById('confirmScan').focus();
-  scheduleSave();
-}
-
-function adjustPicked(idx, which, delta){
-  if(!confirmMode) return;
-  if(idx !== currentIdx) return;
-
-  const p = lastPick[idx];
-  if(!p) return;
-
-  const allowOver = document.getElementById('allowOver').checked;
-
-  if(which === 'ply'){
-    const next = (p.plyPicked||0) + delta;
-    if(next < 0) return;
-    if(!allowOver && next > (p.plyPlan||0)) return;
-    p.plyPicked = next;
-  } else {
-    const next = (p.ghPicked||0) + delta;
-    if(next < 0) return;
-    if(!allowOver && next > (p.ghPlan||0)) return;
-    p.ghPicked = next;
-  }
-
-  p.shortageDone = false;
-  renderTable();
-  maybeAdvanceCurrent();
-  scheduleSave();
-}
-
-function allocateBoth(p, qty){
-  const allowOver = document.getElementById('allowOver').checked;
-  const pref = document.getElementById('allocPriority')?.value || 'ply_first';
-
-  let remainingPLY = Math.max((p.plyPlan||0) - (p.plyPicked||0), 0);
-  let remainingGH  = Math.max((p.ghPlan||0) - (p.ghPicked||0), 0);
-
-  let left = qty;
-  let addPLY = 0, addGH = 0;
-
-  const take = (bucket)=>{
-    if(left <= 0) return;
-
-    if(bucket === 'ply'){
-      const can = allowOver ? left : Math.min(left, remainingPLY);
-      if(can > 0){
-        addPLY += can;
-        p.plyPicked = (p.plyPicked||0) + can;
-        left -= can;
-        remainingPLY = Math.max(remainingPLY - can, 0);
-      }
-    } else {
-      const can = allowOver ? left : Math.min(left, remainingGH);
-      if(can > 0){
-        addGH += can;
-        p.ghPicked = (p.ghPicked||0) + can;
-        left -= can;
-        remainingGH = Math.max(remainingGH - can, 0);
-      }
-    }
-  };
-
-  if(pref === 'gh_first'){ take('gh'); take('ply'); }
-  else { take('ply'); take('gh'); }
-
-  if(left > 0 && !allowOver){
-    return { addPLY, addGH, blocked: left };
-  }
-  return { addPLY, addGH, blocked: 0 };
-}
-
-function doneCurrent(idx){
-  if(!confirmMode) return;
-  if(idx !== currentIdx) return;
-
-  const p = lastPick[idx];
-  if(!p) return;
-
-  if(isItemComplete(p)){
-    moveToNextOpenItem();
-    return;
-  }
-
-  const title = String(p.r?.[COL_TITLE] || '').trim();
-  const bin = String(p.r?.[COL_WH_BIN] || '').trim();
-  const rem = remainingForItem(p);
-
-  let msg = `Mark this line done short and move on?\n\n${title}\n${bin}\n\n`;
-  if(p.toSel === 'plymouth'){
-    msg += `Planned PLY: ${p.plyPlan}\nScanned PLY: ${p.plyPicked}\nRemaining: ${rem.ply}`;
-  } else if(p.toSel === 'green'){
-    msg += `Planned GH: ${p.ghPlan}\nScanned GH: ${p.ghPicked}\nRemaining: ${rem.gh}`;
-  } else {
-    msg += `Planned PLY: ${p.plyPlan}\nScanned PLY: ${p.plyPicked}\nRemaining PLY: ${rem.ply}\n\n`;
-    msg += `Planned GH: ${p.ghPlan}\nScanned GH: ${p.ghPicked}\nRemaining GH: ${rem.gh}`;
-  }
-
-  const ok = confirm(msg);
-  if(!ok) return;
-
-  p.shortageDone = true;
-  moveToNextOpenItem();
-}
-
-function handleConfirmScan(q){
-  if(!confirmMode) return;
-
-  const now = Date.now();
-  if(q && lastConfirmScan.key === q && (now - lastConfirmScan.ts) < DUP_WINDOW_MS){
-    lastConfirmScan.ts = now;
-    return;
-  }
-  lastConfirmScan = { key:q, ts:now };
 
   const idx = pickIndex.get(q);
-  if(idx === undefined){
-    setStatusBadge('NOT IN PICK: ' + q, 'bad');
-    scheduleSave();
-    return;
-  }
+  if(idx===undefined) return;
 
-  if(idx !== currentIdx){
-    const current = lastPick[currentIdx];
-    const currentBin = String(current?.r?.[COL_WH_BIN] || '').trim() || '(no bin)';
-    const currentTitle = String(current?.r?.[COL_TITLE] || '').trim();
-    setStatusBadge(`WRONG ITEM — STAY ON ${currentBin}: ${currentTitle}`, 'bad');
-    scheduleSave();
-    return;
-  }
+  // 🔥 jump to scanned item
+  currentIdx = idx;
 
   const p = lastPick[idx];
-  const qty = Math.max(1, Math.floor(Number(document.getElementById('scanQty').value || 1)));
-  p.shortageDone = false;
+  p.picked++;
 
-  if(meta.toSelection === 'plymouth'){
-    const allowOver = document.getElementById('allowOver').checked;
-    const next = (p.plyPicked||0) + qty;
-    if(!allowOver && next > (p.plyPlan||0)){
-      setStatusBadge('OVER PICK (PLY): ' + (p.r[COL_TITLE]||''), 'warn');
-      scheduleSave();
-      return;
-    }
-    p.plyPicked = next;
-    setStatusBadge('OK +' + qty + ' (PLY): ' + (p.r[COL_TITLE]||''), 'ok');
+  render();
+
+  // 🔥 ONLY advance if complete
+  if(isComplete(p)){
+    moveNext();
   }
-  else if(meta.toSelection === 'green'){
-    const allowOver = document.getElementById('allowOver').checked;
-    const next = (p.ghPicked||0) + qty;
-    if(!allowOver && next > (p.ghPlan||0)){
-      setStatusBadge('OVER PICK (GH): ' + (p.r[COL_TITLE]||''), 'warn');
-      scheduleSave();
-      return;
-    }
-    p.ghPicked = next;
-    setStatusBadge('OK +' + qty + ' (GH): ' + (p.r[COL_TITLE]||''), 'ok');
-  }
-  else{
-    const beforePLY = p.plyPicked||0;
-    const beforeGH  = p.ghPicked||0;
-
-    const res = allocateBoth(p, qty);
-
-    const dPLY = (p.plyPicked||0) - beforePLY;
-    const dGH  = (p.ghPicked||0) - beforeGH;
-
-    if(dPLY === 0 && dGH === 0){
-      setStatusBadge('OVER PICK (BOTH): ' + (p.r[COL_TITLE]||''), 'warn');
-      scheduleSave();
-      return;
-    }
-
-    const parts = [];
-    if(dPLY) parts.push(`PLY +${dPLY}`);
-    if(dGH)  parts.push(`GH +${dGH}`);
-
-    let msg = `OK +${qty} (${parts.join(', ')}): ${p.r[COL_TITLE]||''}`;
-    if(res.blocked){
-      msg += ` — BLOCKED ${res.blocked}`;
-      setStatusBadge(msg, 'warn');
-    } else {
-      setStatusBadge(msg, 'ok');
-    }
-  }
-
-  renderTable();
-  maybeAdvanceCurrent();
-  scheduleSave();
 }
 
-document.getElementById('confirmScan').addEventListener('keydown', e=>{
-  if(e.key === 'Enter'){
-    const q = e.target.value.trim();
-    e.target.value = '';
-    if(!q) return;
-    handleConfirmScan(q);
-    setTimeout(()=>document.getElementById('confirmScan').focus(), 25);
+document.getElementById('confirmScan').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    handleScan(e.target.value.trim());
+    e.target.value='';
   }
 });
-
-document.getElementById('fromLoc').addEventListener('change', scheduleSave);
-document.getElementById('toLoc').addEventListener('change', scheduleSave);
-document.getElementById('scanQty').addEventListener('change', scheduleSave);
-document.getElementById('allocPriority')?.addEventListener('change', scheduleSave);
-document.getElementById('allowOver').addEventListener('change', scheduleSave);
-
-function csvEscape(s){
-  s = String(s ?? '');
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
-}
-function pickerFilename(){ return `${meta.from}_to_${meta.to}_${meta.date}_${meta.time}_PICK.csv`; }
-function uploadFilename(dest){ return `${meta.from}_to_${dest}_${meta.date}_${meta.time}_UPLOAD.csv`; }
-function downloadText(name,text){
-  const blob=new Blob([text],{type:'text/csv;charset=utf-8;'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;
-  a.download=name;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-function downloadPickerCSV(){
-  if(!meta) return;
-
-  sortLastPick();
-  rebuildPickIndex();
-
-  let csv="";
-  csv+=`FROM: ${meta.from}\n`;
-  csv+=`TO: ${meta.to}\n`;
-  csv+=`Generated: ${meta.date} ${meta.time}\n`;
-  csv+=`Shopify Transfer #: ______________________\n\n`;
-
-  if(meta.toSelection==='plymouth'){
-    csv += "Barcode,SKU,Title,WH Bin,WH Available,Planned PLY\n";
-  } else if(meta.toSelection==='green'){
-    csv += "Barcode,SKU,Title,WH Bin,WH Available,Planned GH\n";
-  } else {
-    csv += "Barcode,SKU,Title,WH Bin,WH Available,Planned PLY,Planned GH\n";
-  }
-
-  lastPick.forEach(p=>{
-    const barcode = String(p.r[COL_BARCODE]||'').trim();
-    const sku = getSku(p.r);
-    const title = String(p.r[COL_TITLE]||'').trim();
-    const bin = String(p.r[COL_WH_BIN]||'').trim();
-
-    let line = `${csvEscape(barcode)},${csvEscape(sku)},${csvEscape(title)},${csvEscape(bin)},${p.whAvail}`;
-    if(meta.toSelection==='plymouth') line += `,${p.plyPlan}`;
-    else if(meta.toSelection==='green') line += `,${p.ghPlan}`;
-    else line += `,${p.plyPlan},${p.ghPlan}`;
-    csv += line + "\n";
-  });
-
-  downloadText(pickerFilename(), csv);
-}
-
-function buildUpload(dest){
-  let csv="sku,barcode,quantity\n";
-  lastPick.forEach(p=>{
-    const sku = getSku(p.r);
-    const barcode = String(p.r[COL_BARCODE]||'').trim();
-    const qty = (dest==='plymouth') ? (p.plyPicked||0) : (p.ghPicked||0);
-    if(qty > 0) csv += `${csvEscape(sku)},${csvEscape(barcode)},${Math.floor(qty)}\n`;
-  });
-  return csv;
-}
-
-function downloadShopifyCSV(){
-  if(!meta) return;
-
-  if(!confirmMode){
-    const ok = confirm(
-      "Shopify Upload requires Confirm Mode.\n\n" +
-      "Click OK to START Confirm Mode.\n\n" +
-      "• Confirmed counts will reset to 0\n" +
-      "• Scan the items that are physically staged\n" +
-      "• Then click Shopify Upload again\n\n" +
-      "Click Cancel to go back."
-    );
-    if(!ok) return;
-
-    lastPick.forEach(p=>{
-      p.plyPicked = 0;
-      p.ghPicked = 0;
-      p.shortageDone = false;
-    });
-
-    sortLastPick();
-    rebuildPickIndex();
-    currentIdx = firstOpenIndex(0);
-
-    confirmMode = true;
-    setConfirmUI(true);
-
-    const first = lastPick[currentIdx];
-    if(first){
-      const bin = String(first.r?.[COL_WH_BIN] || '').trim() || '(no bin)';
-      setStatusBadge(`START: ${bin} — ${first.r?.[COL_TITLE] || ''}`, 'warn');
-    } else {
-      setStatusBadge('Confirm Mode started — scan staged items now', 'warn');
-    }
-
-    setTimeout(()=>document.getElementById('confirmScan').focus(), 50);
-
-    scheduleSave();
-    return;
-  }
-
-  if(meta.toSelection==='plymouth'){
-    downloadText(uploadFilename('PLY'), buildUpload('plymouth'));
-  }
-  else if(meta.toSelection==='green'){
-    downloadText(uploadFilename('GH'), buildUpload('green'));
-  }
-  else{
-    const ok2 = confirm(
-      "BOTH pick detected.\n\nThis will download TWO Shopify upload files:\n1) WH → PLY\n2) WH → GH\n\nYou must create two transfers in Shopify.\n\nContinue?"
-    );
-    if(!ok2) return;
-    downloadText(uploadFilename('PLY'), buildUpload('plymouth'));
-    downloadText(uploadFilename('GH'), buildUpload('green'));
-  }
-
-  scheduleSave();
-}
-
-/** boot */
-loadCSV();
 </script>
 
 </body>
