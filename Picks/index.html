@@ -7,23 +7,56 @@
 
 <style>
 body{font-family:system-ui;margin:20px;background:#f4f6f9}
-.topnav{position:sticky;top:0;z-index:50;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:10px;margin-bottom:16px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+
+/* NAV */
+.topnav{
+  position:sticky; top:0; z-index:50;
+  background:#fff;
+  border:1px solid #e5e7eb;
+  border-radius:14px;
+  padding:10px;
+  margin-bottom:16px;
+  box-shadow:0 2px 10px rgba(0,0,0,.05);
+}
 .topnav .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .topnav .spacer{flex:1}
-.topnav button{padding:8px 14px;border-radius:10px;border:1px solid #d1d5db;font-weight:700;cursor:pointer;background:#fff}
-.topnav button.active{background:#111827;color:#fff;border-color:#111827}
+.topnav a{text-decoration:none}
+.topnav button{
+  padding:8px 14px;border-radius:10px;border:1px solid #d1d5db;
+  font-weight:700;cursor:pointer;background:#fff;
+}
+.topnav button.active{
+  background:#111827;color:#fff;border-color:#111827;
+}
+
 .card{background:#fff;padding:16px;border-radius:14px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
 .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+
 button{padding:8px 14px;border-radius:10px;border:1px solid #d1d5db;font-weight:700;cursor:pointer;background:#fff}
-button:disabled{opacity:.5}
+button:disabled{opacity:.5;cursor:not-allowed}
 .primary{background:#2563eb;color:#fff;border-color:#2563eb}
 .ghost{background:#0f172a;color:#fff;border-color:#0f172a}
+
+select,input[type="number"]{padding:6px 10px;border-radius:8px;border:1px solid #d1d5db;font-weight:600}
 table{width:100%;border-collapse:collapse}
-th,td{padding:8px;border-bottom:1px solid #e5e7eb;text-align:left}
+th,td{padding:8px;border-bottom:1px solid #e5e7eb;text-align:left;vertical-align:middle}
 th{background:#f1f5f9}
 .mono{font-family:monospace}
-.scanbox{font-size:22px;padding:10px;width:320px;border-radius:10px;border:1px solid #cbd5e1}
-.currentRow{background:#dbeafe}
+.small{font-size:12px;color:#64748b;font-weight:700}
+
+.badge{display:inline-block;padding:4px 10px;border-radius:999px;font-weight:800;font-size:12px;border:1px solid #e5e7eb;background:#f8fafc}
+.badge.on{background:#dcfce7;border-color:#86efac;color:#166534}
+.badge.off{background:#fee2e2;border-color:#fecaca;color:#7f1d1d}
+.badge.warn{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
+
+.scanbox{font-size:22px;padding:10px 12px;width:320px;max-width:100%;border-radius:10px;border:1px solid #cbd5e1}
+.k{font-weight:900}
+.miniBtn{padding:6px 10px;border-radius:10px;border:1px solid #d1d5db;font-weight:900;cursor:pointer;background:#fff}
+.miniBtn:disabled{opacity:.4;cursor:not-allowed}
+
+.currentRow{
+  background:#dbeafe;
+}
 </style>
 </head>
 
@@ -32,12 +65,12 @@ th{background:#f1f5f9}
 <h1>Picks</h1>
 
 <div class="card">
-<button class="primary" onclick="buildPick()">Build Pick</button>
-<button onclick="toggleConfirmMode()">Confirm Mode</button>
+  <button class="primary" onclick="buildPick()">Build Pick</button>
+  <button class="ghost" onclick="toggleConfirmMode()">Confirm Mode</button>
 </div>
 
 <div class="card" id="confirmCard" style="display:none">
-<input id="confirmScan" class="scanbox" placeholder="Scan">
+  <input id="confirmScan" class="scanbox" placeholder="Scan barcode">
 </div>
 
 <div class="card">
@@ -57,6 +90,7 @@ th{background:#f1f5f9}
 </div>
 
 <script>
+
 let lastPick = [];
 let confirmMode = false;
 let currentIdx = 0;
@@ -67,32 +101,18 @@ function buildPick(){
     {barcode:'111',title:'Item A',bin:'A-01-01',plan:3,picked:0},
     {barcode:'222',title:'Item B',bin:'B-01-01',plan:2,picked:0}
   ];
-
-  sortLastPick();
-  rebuildIndex();
-  currentIdx = 0;
+  sort();
+  index();
   render();
 }
 
-function parseBin(bin){
-  return bin.split('-');
+function sort(){
+  lastPick.sort((a,b)=>a.bin.localeCompare(b.bin,undefined,{numeric:true}));
 }
 
-function compareBins(a,b){
-  const pa = parseBin(a);
-  const pb = parseBin(b);
-  return pa[0].localeCompare(pb[0]) || pa[1]-pb[1] || pa[2]-pb[2];
-}
-
-function sortLastPick(){
-  lastPick.sort((a,b)=>compareBins(a.bin,b.bin));
-}
-
-function rebuildIndex(){
+function index(){
   pickIndex.clear();
-  lastPick.forEach((p,i)=>{
-    pickIndex.set(p.barcode,i);
-  });
+  lastPick.forEach((p,i)=>pickIndex.set(p.barcode,i));
 }
 
 function render(){
@@ -100,15 +120,14 @@ function render(){
   tbody.innerHTML='';
   lastPick.forEach((p,i)=>{
     const tr=document.createElement('tr');
-    if(i===currentIdx && confirmMode) tr.classList.add('currentRow');
-
+    if(confirmMode && i===currentIdx) tr.classList.add('currentRow');
     tr.innerHTML=`
-    <td>${p.barcode}</td>
-    <td>${p.title}</td>
-    <td>${p.bin}</td>
-    <td>${p.plan}</td>
-    <td>${p.picked}</td>
-    <td><button onclick="done(${i})">Done</button></td>
+      <td>${p.barcode}</td>
+      <td>${p.title}</td>
+      <td>${p.bin}</td>
+      <td>${p.plan}</td>
+      <td>${p.picked}</td>
+      <td><button onclick="done(${i})">Done</button></td>
     `;
     tbody.appendChild(tr);
   });
@@ -118,6 +137,11 @@ function toggleConfirmMode(){
   confirmMode=!confirmMode;
   document.getElementById('confirmCard').style.display=confirmMode?'block':'none';
   render();
+}
+
+function done(i){
+  if(i!==currentIdx) return;
+  moveNext();
 }
 
 function isComplete(p){
@@ -135,18 +159,14 @@ function moveNext(){
   alert('Pick complete');
 }
 
-function done(i){
-  if(i!==currentIdx) return;
-  moveNext();
-}
-
-function handleScan(q){
+/* 🔥 THIS IS THE ONLY CHANGED FUNCTION */
+function handleConfirmScan(q){
   if(!confirmMode) return;
 
   const idx = pickIndex.get(q);
   if(idx===undefined) return;
 
-  // 🔥 jump to scanned item
+  // jump to scanned item
   currentIdx = idx;
 
   const p = lastPick[idx];
@@ -154,18 +174,20 @@ function handleScan(q){
 
   render();
 
-  // 🔥 ONLY advance if complete
+  // ONLY advance if fully complete
   if(isComplete(p)){
     moveNext();
   }
+  // otherwise stay on item until DONE pressed
 }
 
 document.getElementById('confirmScan').addEventListener('keydown',e=>{
   if(e.key==='Enter'){
-    handleScan(e.target.value.trim());
+    handleConfirmScan(e.target.value.trim());
     e.target.value='';
   }
 });
+
 </script>
 
 </body>
