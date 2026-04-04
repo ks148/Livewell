@@ -1029,15 +1029,20 @@ function doneCurrent(idx){
 }
 
 function handleConfirmScan(q){
- currentIdx = idx;
+  if(!confirmMode) return;
+
+  const now = Date.now();
+  if(q && lastConfirmScan.key === q && (now - lastConfirmScan.ts) < DUP_WINDOW_MS){
+    lastConfirmScan.ts = now;
+    return;
+  }
   lastConfirmScan = { key:q, ts:now };
 
   const idx = pickIndex.get(q);
-  if(idx !== undefined){
-  currentIdx = idx;
-  renderTable();
-}
- 
+  if(idx === undefined){
+    setStatusBadge('NOT IN PICK: ' + q, 'bad');
+    scheduleSave();
+    return;
   }
 
   if(idx !== currentIdx){
@@ -1104,9 +1109,7 @@ function handleConfirmScan(q){
   }
 
   renderTable();
-  if(isItemComplete(lastPick[currentIdx])){
-  moveToNextOpenItem();
-}
+  maybeAdvanceCurrent();
   scheduleSave();
 }
 
