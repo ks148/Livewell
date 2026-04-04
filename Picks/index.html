@@ -1033,10 +1033,11 @@ function handleConfirmScan(q){
   lastConfirmScan = { key:q, ts:now };
 
   const idx = pickIndex.get(q);
-  if(idx === undefined){
-    setStatusBadge('NOT IN PICK: ' + q, 'bad');
-    scheduleSave();
-    return;
+  if(idx !== undefined){
+  currentIdx = idx;
+  renderTable();
+}
+ 
   }
 
   if(idx !== currentIdx){
@@ -1103,7 +1104,9 @@ function handleConfirmScan(q){
   }
 
   renderTable();
-  maybeAdvanceCurrent();
+  if(isItemComplete(lastPick[currentIdx])){
+  moveToNextOpenItem();
+}
   scheduleSave();
 }
 
