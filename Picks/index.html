@@ -1029,13 +1029,7 @@ function doneCurrent(idx){
 }
 
 function handleConfirmScan(q){
-  if(!confirmMode) return;
-
-  const now = Date.now();
-  if(q && lastConfirmScan.key === q && (now - lastConfirmScan.ts) < DUP_WINDOW_MS){
-    lastConfirmScan.ts = now;
-    return;
-  }
+ currentIdx = idx;
   lastConfirmScan = { key:q, ts:now };
 
   const idx = pickIndex.get(q);
