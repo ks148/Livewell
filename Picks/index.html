@@ -174,6 +174,8 @@ const CSV_URL = '../pickle-data.csv';
 const FAST_SELLERS_URL = '../fast-sellers.csv';
 
 /** COLUMN NAMES **/
+const COL_VARIANT_ID = 'Variant ID';
+const VARIANT_ID_CANDIDATES = ['Variant ID','Variant Id','variant_id','ID','id'];
 const COL_BARCODE = 'Variant Barcode';
 const COL_TITLE = 'Title';
 const COL_WH_BIN = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
@@ -299,9 +301,10 @@ function applyState(st){
   if(saved.length && rows.length){
     saved.forEach(s=>{
       const match = rows.find(r=>{
+        const vid = getVariantId(r);
         const b = String(r[COL_BARCODE]||'').trim();
         const sku = getSku(r);
-        return (s.barcode && b === s.barcode) || (s.sku && sku === s.sku);
+        return (s.variantId && vid === s.variantId) || (s.barcode && b === s.barcode) || (s.sku && sku === s.sku);
       });
       if(!match) return;
       lastPick.push({
@@ -481,11 +484,12 @@ async function loadFastSellersCSV(){
     fastRows = parsed.records || [];
     fastSellerSet.clear();
     fastRows.forEach(r=>{
+      addFastValue(r['Variant ID']); addFastValue(r['Variant Id']); addFastValue(r['variant_id']); addFastValue(r['ID']); addFastValue(r['id']);
       addFastValue(r['Variant Barcode']); addFastValue(r['Barcode']); addFastValue(r['barcode']);
       addFastValue(r['Variant SKU']); addFastValue(r['SKU']); addFastValue(r['sku']); addFastValue(r['variant_sku']);
     });
     fastDataLoaded = true;
-    setFastStatus(`Fast Sellers: Loaded (${fastSellerSet.size})`, 'on');
+    setFastStatus(`Fast Sellers: Loaded (${fastSellerSet.size})`, fastSellerSet.size ? 'on' : 'warn');
   }catch(e){
     fastRows = []; fastSellerSet.clear(); fastDataLoaded = false;
     setFastStatus('Fast Sellers: Not Found', 'warn');
@@ -493,9 +497,10 @@ async function loadFastSellersCSV(){
   }
 }
 function isFastSeller(row){
+  const variantId = getVariantId(row || {});
   const barcode = String(row?.[COL_BARCODE] || '').trim();
   const sku = getSku(row || {});
-  return fastSellerSet.has(barcode) || fastSellerSet.has(sku);
+  return fastSellerSet.has(variantId) || fastSellerSet.has(barcode) || fastSellerSet.has(sku);
 }
 
 async function loadCSV(){
