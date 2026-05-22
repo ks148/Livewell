@@ -268,6 +268,7 @@ function getState(){
         ghPicked: p.ghPicked,
         shortageDone: !!p.shortageDone,
         priority: !!p.priority,
+        variantId: (()=>{ try{ return getVariantId(p.r); }catch{ return ''; } })(),
         barcode: String(p.r?.[COL_BARCODE] || '').trim(),
         sku: (()=>{ try{ return getSku(p.r); }catch{ return ''; } })()
       })) : []
@@ -359,6 +360,26 @@ function setCSVStatus(text, kind){ csvStatusEl.textContent = text; csvStatusEl.c
 function setFastStatus(text, kind){ fastStatusEl.textContent = text; fastStatusEl.className = 'badge ' + (kind || 'warn'); }
 function n(v){ const num = Number(String(v ?? '').trim()); return Number.isFinite(num) ? Math.floor(num) : 0; }
 function need(on,min,max){ if(!(on < min)) return 0; return Math.max(max - on, 0); }
+function getVariantId(row){
+  const candidates = [
+    'Variant ID',
+    'Variant Id',
+    'Product variant ID',
+    'Product Variant ID',
+    'product variant id',
+    'variant_id',
+    'Variant ID: ID',
+    'ID',
+    'id'
+  ];
+  for(const k of candidates){
+    if(k in row && row[k]){
+      const v = String(row[k] || '').trim();
+      if(v) return v;
+    }
+  }
+  return '';
+}
 function getSku(row){
   for(const k of SKU_CANDIDATES){
     if(k in row && row[k]){ const v = String(row[k]||'').trim(); if(v) return v; }
@@ -484,9 +505,25 @@ async function loadFastSellersCSV(){
     fastRows = parsed.records || [];
     fastSellerSet.clear();
     fastRows.forEach(r=>{
-      addFastValue(r['Variant ID']); addFastValue(r['Variant Id']); addFastValue(r['variant_id']); addFastValue(r['ID']); addFastValue(r['id']);
-      addFastValue(r['Variant Barcode']); addFastValue(r['Barcode']); addFastValue(r['barcode']);
-      addFastValue(r['Variant SKU']); addFastValue(r['SKU']); addFastValue(r['sku']); addFastValue(r['variant_sku']);
+      addFastValue(r['Variant ID']);
+      addFastValue(r['Variant Id']);
+      addFastValue(r['Product variant ID']);
+      addFastValue(r['Product Variant ID']);
+      addFastValue(r['product variant id']);
+      addFastValue(r['variant_id']);
+      addFastValue(r['Variant ID: ID']);
+      addFastValue(r['ID']);
+      addFastValue(r['id']);
+
+      addFastValue(r['Variant Barcode']);
+      addFastValue(r['Barcode']);
+      addFastValue(r['barcode']);
+
+      addFastValue(r['Variant SKU']);
+      addFastValue(r['Product variant SKU']);
+      addFastValue(r['SKU']);
+      addFastValue(r['sku']);
+      addFastValue(r['variant_sku']);
     });
     fastDataLoaded = true;
     setFastStatus(`Fast Sellers: Loaded (${fastSellerSet.size})`, fastSellerSet.size ? 'on' : 'warn');
