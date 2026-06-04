@@ -46,7 +46,8 @@
   .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
   .grid2{display:grid;grid-template-columns:1fr;gap:14px}
   @media(min-width:980px){ .grid2{grid-template-columns:1.2fr .8fr} }
-  input{font-size:22px;padding:12px 12px;width:100%;border-radius:14px;border:1px solid #cbd5e1;box-sizing:border-box;background:#fff}
+  input, select{font-size:22px;padding:12px 12px;width:100%;border-radius:14px;border:1px solid #cbd5e1;box-sizing:border-box;background:#fff}
+  select{font-size:16px;font-weight:900}
   label{display:block;font-size:12px;color:#64748b;font-weight:900;margin:6px 0}
   .btn{padding:10px 12px;border-radius:12px;border:1px solid var(--line);font-weight:900;cursor:pointer;background:var(--btn)}
   .btn:active{transform:translateY(1px)}
@@ -101,6 +102,7 @@
       Auto-loads <strong>pickle-data.csv</strong>. Scan SKU/barcode to see needed-to-max and WH bin.
       Bin updates are <strong>auto-queued on every scan</strong>. Blank bins are allowed.
       <br><strong>Draft saving:</strong> this page auto-saves your progress so switching tools / refresh / closing the tab won’t lose work.
+      <br><strong>Floor putaway:</strong> scan the tub once, then export a floor-walking CSV sorted by floor location.
     </p>
 
     <div class="row" style="align-items:flex-start">
@@ -210,12 +212,28 @@
       <div class="row" style="justify-content:space-between">
         <div>
           <div style="font-weight:1000;font-size:16px">Putaway Report</div>
-          <div class="sub">Scans log here automatically. Download CSV sorted by bin.</div>
+          <div class="sub">Scans log here automatically. Download warehouse CSV sorted by bin, or floor CSV sorted by floor location.</div>
         </div>
         <div class="row" style="gap:8px">
           <button class="btn" type="button" onclick="clearLog()">Clear Log</button>
           <button class="btn btnDanger" type="button" onclick="clearBinQueue()">Clear Bin Queue</button>
           <button class="btn btnDanger" type="button" onclick="newBatch()">New Batch</button>
+        </div>
+      </div>
+
+      <div class="row" style="align-items:flex-end;margin-top:8px">
+        <div style="min-width:240px;flex:1">
+          <label>Floor Putaway Destination</label>
+          <select id="floorDestination">
+            <option value="plymouth">Plymouth</option>
+            <option value="green">Green Harbor</option>
+            <option value="both">Both / show both floor locations</option>
+          </select>
+        </div>
+        <div class="sub" style="margin:0;flex:2">
+          Floor CSV uses Shopify metafields:
+          <span class="mono">custom.floor_location_ply</span> and
+          <span class="mono">custom.floor_location_gh</span>.
         </div>
       </div>
 
@@ -228,6 +246,7 @@
 
       <div class="row" style="margin-top:12px">
         <button class="btn btnPrimary" type="button" onclick="downloadPutawayCSV()">Download Putaway CSV</button>
+        <button class="btn btnPrimary" type="button" onclick="downloadFloorPutawayCSV()">Download Floor Putaway CSV</button>
       </div>
 
       <div class="hr"></div>
@@ -264,6 +283,17 @@ const COL_MAX_GH     = 'Variant Metafield: custom.maxgh [number_integer]';
 
 const COL_WH_BIN     = 'Variant Metafield: custom.wh_bin [single_line_text_field]';
 const COL_WEIGHT     = 'Variant Weight';
+
+// Floor putaway location metafields.
+// Add these to pickle-data.csv / Matrixify export when you are ready.
+// The fallback names allow this to work if your CSV headers are simpler.
+const COL_FLOOR_PLY_PRIMARY = 'Variant Metafield: custom.floor_location_ply [single_line_text_field]';
+const COL_FLOOR_GH_PRIMARY  = 'Variant Metafield: custom.floor_location_gh [single_line_text_field]';
+const COL_FLOOR_PLY_FALLBACK = 'Floor Location Plymouth';
+const COL_FLOOR_GH_FALLBACK  = 'Floor Location Green Harbor';
+
+const COL_PRICE_PRIMARY = 'Variant Price';
+const COL_PRICE_FALLBACK = 'Price';
 
 let rows = [];
 let currentMatch = null;
@@ -371,7 +401,8 @@ function getState(){
     inMaxPly: document.getElementById('inMaxPly')?.value || '',
     inMinGh: document.getElementById('inMinGh')?.value || '',
     inMaxGh: document.getElementById('inMaxGh')?.value || '',
-    autoClearBinAfterDownload: document.getElementById('autoClearBinAfterDownload')?.checked || false
+    autoClearBinAfterDownload: document.getElementById('autoClearBinAfterDownload')?.checked || false,
+    floorDestination: document.getElementById('floorDestination')?.value || 'plymouth'
   };
 
   return {
@@ -420,6 +451,9 @@ function applyState(st){
 
   const autoEl = document.getElementById('autoClearBinAfterDownload');
   if(autoEl) autoEl.checked = !!e.autoClearBinAfterDownload;
+
+  const floorDestEl = document.getElementById('floorDestination');
+  if(floorDestEl) floorDestEl.value = e.floorDestination || 'plymouth';
 
   // show/hide edit card
   const editCard = document.getElementById('editCard');
@@ -554,6 +588,26 @@ function parseCSV(text){
   });
 }
 
+function valFromAny(row, headers){
+  for(const h of headers){
+    const v = row?.[h];
+    if(v !== undefined && String(v ?? '').trim() !== '') return v;
+  }
+  return '';
+}
+
+function getFloorPly(row){
+  return valFromAny(row, [COL_FLOOR_PLY_PRIMARY, COL_FLOOR_PLY_FALLBACK]);
+}
+
+function getFloorGh(row){
+  return valFromAny(row, [COL_FLOOR_GH_PRIMARY, COL_FLOOR_GH_FALLBACK]);
+}
+
+function getPrice(row){
+  return valFromAny(row, [COL_PRICE_PRIMARY, COL_PRICE_FALLBACK]);
+}
+
 function setStatus(ok, msg){
   document.getElementById('status').innerHTML =
     `<span class="badge ${ok ? 'good' : 'bad'}">${ok ? 'Loaded' : 'Failed'}</span> ${msg}`;
@@ -603,7 +657,7 @@ function renderQueues(){
 }
 
 /** =========================
- * QUEUE CLEAR / NEW BATCH (NEW)
+ * QUEUE CLEAR / NEW BATCH
  * ========================= */
 function clearBinQueue(){
   if(bQueue.size === 0){
@@ -789,7 +843,12 @@ function addPutaway(m){
     time: new Date().toLocaleTimeString(),
     bin: m[COL_WH_BIN] || '',
     barcode: m[COL_BARCODE] || '',
-    title: m[COL_TITLE] || ''
+    sku: m[COL_SKU] || '',
+    title: m[COL_TITLE] || '',
+    price: getPrice(m),
+    floorPly: getFloorPly(m),
+    floorGh: getFloorGh(m),
+    variantId: m[COL_VARIANT_ID] || ''
   };
   putawayList.unshift(entry);
   rebuildPutawayTable();
@@ -926,6 +985,118 @@ function downloadPutawayCSV(){
   downloadText(`putaway-report_${new Date().toISOString().slice(0,10)}.csv`, buildCSV(headers, rows2d));
 }
 
+function expandFloorRowsForExport(){
+  const dest = document.getElementById('floorDestination')?.value || 'plymouth';
+  const expanded = [];
+
+  for(const item of putawayList){
+    if(dest === 'plymouth' || dest === 'both'){
+      expanded.push({
+        destination: 'Plymouth',
+        floorLocation: item.floorPly || '',
+        whBin: item.bin || '',
+        barcode: item.barcode || '',
+        sku: item.sku || '',
+        title: item.title || '',
+        price: item.price || '',
+        variantId: item.variantId || ''
+      });
+    }
+
+    if(dest === 'green' || dest === 'both'){
+      expanded.push({
+        destination: 'Green Harbor',
+        floorLocation: item.floorGh || '',
+        whBin: item.bin || '',
+        barcode: item.barcode || '',
+        sku: item.sku || '',
+        title: item.title || '',
+        price: item.price || '',
+        variantId: item.variantId || ''
+      });
+    }
+  }
+
+  return expanded;
+}
+
+function aggregateFloorRows(rowsIn){
+  const map = new Map();
+
+  for(const r of rowsIn){
+    const key = [
+      r.destination,
+      r.floorLocation,
+      r.whBin,
+      r.barcode,
+      r.sku,
+      r.title,
+      r.price,
+      r.variantId
+    ].join('||');
+
+    if(!map.has(key)){
+      map.set(key, {...r, qty: 0});
+    }
+    map.get(key).qty += 1;
+  }
+
+  return Array.from(map.values());
+}
+
+function downloadFloorPutawayCSV(){
+  if(!putawayList.length){
+    toast('Nothing to download', 'Putaway list is empty.');
+    return;
+  }
+
+  const expanded = expandFloorRowsForExport();
+  const grouped = aggregateFloorRows(expanded);
+
+  grouped.sort((a,b)=>{
+    const locA = (a.floorLocation || 'ZZZ NEEDS LOCATION').toUpperCase();
+    const locB = (b.floorLocation || 'ZZZ NEEDS LOCATION').toUpperCase();
+
+    const byDest = a.destination.localeCompare(b.destination, undefined, {numeric:true, sensitivity:'base'});
+    if(byDest) return byDest;
+
+    const byLoc = locA.localeCompare(locB, undefined, {numeric:true, sensitivity:'base'});
+    if(byLoc) return byLoc;
+
+    const byTitle = (a.title || '').localeCompare((b.title || ''), undefined, {numeric:true, sensitivity:'base'});
+    if(byTitle) return byTitle;
+
+    return (a.barcode || '').localeCompare((b.barcode || ''), undefined, {numeric:true, sensitivity:'base'});
+  });
+
+  const headers = [
+    'Destination',
+    'Floor Location',
+    'WH Bin',
+    'Barcode',
+    'SKU',
+    'Title',
+    'Retail Price',
+    'Qty',
+    'Status'
+  ];
+
+  const rows2d = grouped.map(r => [
+    r.destination,
+    r.floorLocation || 'NEEDS FLOOR LOCATION',
+    r.whBin,
+    r.barcode,
+    r.sku,
+    r.title,
+    r.price,
+    r.qty,
+    r.floorLocation ? '' : 'NEEDS LOCATION'
+  ]);
+
+  downloadText(`floor-putaway_${new Date().toISOString().slice(0,10)}.csv`, buildCSV(headers, rows2d));
+  toast('Downloaded', 'Floor Putaway CSV exported and sorted by floor location.');
+}
+
 function downloadMinMaxCSV(){
   if(mmQueue.size === 0){
     toast('No updates queued', 'Queue a min/max update first.');
@@ -1028,6 +1199,8 @@ function doScan(q){
   const ghNeed  = neededToMax(m[COL_INV_GH],  m[COL_MAX_GH]);
 
   const bin = m[COL_WH_BIN] || '—';
+  const floorPly = getFloorPly(m) || '—';
+  const floorGh = getFloorGh(m) || '—';
 
   document.getElementById('result').innerHTML = `
     <div class="grid2">
@@ -1035,11 +1208,13 @@ function doScan(q){
         <div style="font-weight:1000;color:#1f2937">Plymouth Needed to Max</div>
         <div class="bigNum">${esc(plyNeed)}</div>
         <div class="smallMeta">Max ${esc(m[COL_MAX_PLY] || '—')} • On hand ${esc(m[COL_INV_PLY] || '—')}</div>
+        <div class="smallMeta"><strong>Floor:</strong> <span class="mono">${esc(floorPly)}</span></div>
       </div>
       <div class="card" style="margin:0;border:1px solid var(--line);box-shadow:none">
         <div style="font-weight:1000;color:#1f2937">Green Harbor Needed to Max</div>
         <div class="bigNum">${esc(ghNeed)}</div>
         <div class="smallMeta">Max ${esc(m[COL_MAX_GH] || '—')} • On hand ${esc(m[COL_INV_GH] || '—')}</div>
+        <div class="smallMeta"><strong>Floor:</strong> <span class="mono">${esc(floorGh)}</span></div>
       </div>
     </div>
 
@@ -1065,8 +1240,9 @@ function doScan(q){
 loadCSV();
 renderQueues();
 
-// Save if checkbox changes
+// Save if checkbox or floor destination changes
 document.getElementById('autoClearBinAfterDownload')?.addEventListener('change', ()=> scheduleSave());
+document.getElementById('floorDestination')?.addEventListener('change', ()=> scheduleSave());
 
 </script>
 
